@@ -14,31 +14,44 @@ sesión sin leer todo el código.
 | 1      | Autenticación y esqueleto    | ✅ Completado |
 | 2      | Registro por texto libre     | ✅ Completado |
 | 3      | Registro por foto            | ✅ Completado |
-| 4      | Calendario e histórico       | ⬜ Pendiente  |
+| 4      | Calendario e histórico       | ✅ Completado |
 | 5      | Calibración personal         | ⬜ Pendiente  |
 | 6      | PWA e instalación en iPhone  | ⬜ Pendiente  |
 | 7      | Pulido de frontend (UX/UI)   | ⬜ Pendiente  |
 | 8      | Deploy y CI/CD               | ⬜ Pendiente  |
 
 Repo en GitHub: https://github.com/Mango77x/kalo (rama `main` al día,
-`e71448f`).
+`320c531`).
 
 ---
 
-## 🔑 CREDENCIALES
+## 🔑 CREDENCIALES Y BLOQUEANTES
 
-Todas las credenciales necesarias hasta ahora ya están recibidas y
-configuradas: Project URL + anon (publishable) key de Supabase, contraseña de
-Postgres, API key de Anthropic (configurada como secret de la Edge Function
-`log-text-entry` en Supabase, no vive en el frontend), y un Personal Access
-Token de Supabase (usado solo puntualmente para desplegar funciones vía CLI;
-guardado localmente en `.supabase_access_token`, gitignored, no persiste en
-ningún fichero versionado).
+Todas las credenciales de infraestructura están recibidas y configuradas:
+Project URL + anon (publishable) key de Supabase, contraseña de Postgres, API
+key de Anthropic (secret de las Edge Functions, no vive en el frontend), y un
+Personal Access Token de Supabase (uso puntual para CLI, guardado en
+`.supabase_access_token`, gitignored).
+
+**⚠️ Bloqueante activo: saldo de la cuenta de Anthropic agotado.** Al probar
+el registro por texto/foto en real, la API de Claude devuelve *"Your credit
+balance is too low to access the Anthropic API"*. Esto bloquea funcionalmente
+los Sprints 2 y 3 (ya implementados y desplegados, pero no usables hasta
+resolver esto). Necesitas añadir crédito/método de pago en
+console.anthropic.com → Plans & Billing. No es algo que yo pueda gestionar
+(pagos/facturación).
+
+**Límite de emails de Supabase (rate_limit_email_sent)**: el proyecto tiene el
+límite por defecto de 2 emails/hora para magic link, compartido y no
+ampliable sin configurar SMTP propio (lo intenté vía API de gestión y
+Supabase lo rechaza explícitamente sin custom SMTP). Ya conseguiste iniciar
+sesión una vez — la sesión persiste (`persistSession: true`), así que no
+debería volver a bloquear el acceso normal. Si en el futuro necesitas otro
+magic link (otro dispositivo, sesión expirada) y te topas con el límite, solo
+queda esperar a que resetee o configurar SMTP propio en el dashboard.
 
 Conexión DB verificada: región **eu-west-1**, vía pooler de Supabase
 (`aws-0-eu-west-1.pooler.supabase.com`).
-
-Nada bloqueante ahora mismo para seguir con Sprint 4.
 
 ---
 
@@ -266,3 +279,87 @@ Nada bloqueante ahora mismo para seguir con Sprint 4.
 - Sprint 4 (calendario e histórico) usará `daily_summaries` (ya recalculado
   por trigger desde el Sprint de esquema de BD) para que las gráficas no
   tengan que sumar filas de `food_entries` en cliente.
+
+---
+
+## Nota: intento de cambiar a email+password (revertido)
+
+Entre el Sprint 3 y el 4, al toparte con el límite de emails intentando
+loguearte, probamos temporalmente pasar de magic link a email+password para
+evitar depender del envío de correos. Se implementó, pero:
+
+- Activar `mailer_allow_unverified_email_sign_ins` no bastaba: el propio
+  `signUp()` sigue intentando enviar el email de confirmación dentro de la
+  misma llamada, y ese envío choca igual con el límite si ya estaba agotado.
+- Subir `rate_limit_email_sent` requiere configurar SMTP propio en Supabase
+  (lo rechaza explícitamente sin esas credenciales).
+- Decidiste volver a magic link. Revertí el código (useAuth.tsx, Login.tsx,
+  Layout.tsx) a su versión del Sprint 1 y revertí
+  `mailer_allow_unverified_email_sign_ins` a `false`. No quedó nada de esto
+  commiteado (el árbol de trabajo coincidía exactamente con HEAD tras
+  revertir).
+- Conclusión útil: la sesión ya persistía desde el Sprint 0
+  (`persistSession: true`), así que una vez lograste entrar por magic link,
+  no deberías necesitar otro email salvo que la sesión expire o cambies de
+  dispositivo/navegador.
+
+---
+
+## Sprint 4 — Calendario e histórico ✅
+
+### Qué se hizo
+
+- **`useEntriesForDate(date)`**: generaliza el hook de "Hoy" (Sprint 2) para
+  aceptar cualquier fecha, con la misma suscripción Realtime. `useTodayEntries`
+  pasa a ser un wrapper de una línea con `date = hoy`.
+- **`CalendarPage`**: `react-day-picker` (locale español, días futuros
+  deshabilitados) para elegir cualquier día pasado; muestra las entradas y
+  totales de ese día reutilizando `FoodEntryCard`.
+- **`useDailySummaries(days)`**: lee de `daily_summaries` (no de
+  `food_entries`) para los últimos 7/30 días, sin sumar filas en cliente.
+- **`History`**: toggle 7/30 días, gráfica de área para calorías
+  (`CaloriesTrendChart`) y barras apiladas para macros
+  (`MacrosBarChart`), con Recharts. Los días sin registros se rellenan a
+  cero para que el eje temporal sea continuo.
+- **Corrección de zona horaria en el trigger de `daily_summaries`**: el
+  cálculo original (`consumed_at::date`) usaba la zona horaria de sesión de
+  Postgres (UTC), lo que desplazaría un día las entradas de madrugada en
+  hora local. Nueva migración fuerza `Europe/Madrid` (suposición documentada
+  en el propio SQL — ajustar si cambia).
+
+### Decisiones de diseño y por qué
+
+- **Antes de tocar código de gráficas, consulté la skill de dataviz del
+  proyecto** (paleta validada colorblind-safe, reglas de forma/color/marcas).
+  Los colores de `src/lib/chartColors.ts` vienen de esa paleta de referencia,
+  no inventados a ojo.
+- **Un eje por gráfica** (calorías y macros van en gráficas separadas, no una
+  sola con doble eje Y), siguiendo la regla de la skill de evitar
+  dual-axis.
+- **Calendario usa `food_entries` directamente (vía `useEntriesForDate`), no
+  `daily_summaries`**: necesita la lista de entradas igualmente, así que
+  reutiliza el mismo hook que "Hoy" y evita una consulta extra; además no
+  tiene el problema de zona horaria porque compara timestamps directamente,
+  no la columna `date` calculada en el servidor.
+- **Histórico sí usa `daily_summaries`**: aquí no hace falta el detalle de
+  cada entrada, solo el agregado — exactamente el caso que justifica la
+  tabla cacheada del brief.
+- **Verificación**: build y lint limpios; confirmé que la app no rompe en el
+  flujo sin sesión (sigue redirigiendo a `/login`). **No pude verificar
+  visualmente el calendario ni las gráficas con datos reales** porque
+  requiere una sesión logueada y, sobre todo, entradas reales en
+  `food_entries` — que a día de hoy no existen porque el bloqueante de
+  crédito de Anthropic (ver arriba) impide que se guarde ninguna entrada
+  todavía. En cuanto resuelvas el crédito y registres algo (texto o foto),
+  te pido que eches un vistazo también al calendario y al histórico.
+
+### Pendiente / notas para el siguiente sprint
+
+- **Bloqueante activo**: crédito de Anthropic (ver sección de arriba). Nada
+  de lo construido en Sprints 2-4 se puede probar con datos reales hasta
+  resolverlo.
+- Sprint 5 (calibración) añadirá los botones de feedback por entrada y la
+  lógica de `calibration_factors`; para probarlo hará falta que existan
+  entradas reales primero.
+- El bundle de producción ya pesa ~960KB (Recharts + react-day-picker); el
+  aviso de Vite sobre code-splitting lo dejo para el Sprint 7 (pulido).
