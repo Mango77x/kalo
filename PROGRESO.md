@@ -13,7 +13,7 @@ sesión sin leer todo el código.
 | 0      | Setup del proyecto           | ✅ Completado |
 | 1      | Autenticación y esqueleto    | ✅ Completado |
 | 2      | Registro por texto libre     | ✅ Completado |
-| 3      | Registro por foto            | ⬜ Pendiente  |
+| 3      | Registro por foto            | ✅ Completado |
 | 4      | Calendario e histórico       | ⬜ Pendiente  |
 | 5      | Calibración personal         | ⬜ Pendiente  |
 | 6      | PWA e instalación en iPhone  | ⬜ Pendiente  |
@@ -21,7 +21,7 @@ sesión sin leer todo el código.
 | 8      | Deploy y CI/CD               | ⬜ Pendiente  |
 
 Repo en GitHub: https://github.com/Mango77x/kalo (rama `main` al día,
-`b0aae47`).
+`e71448f`).
 
 ---
 
@@ -38,7 +38,7 @@ ningún fichero versionado).
 Conexión DB verificada: región **eu-west-1**, vía pooler de Supabase
 (`aws-0-eu-west-1.pooler.supabase.com`).
 
-Nada bloqueante ahora mismo para seguir con Sprint 3.
+Nada bloqueante ahora mismo para seguir con Sprint 4.
 
 ---
 
@@ -203,3 +203,66 @@ Nada bloqueante ahora mismo para seguir con Sprint 3.
   `_shared/cors.ts`; solo cambia el contenido del mensaje (imagen base64 +
   prompt de estimación visual) y la función de compresión de imagen en
   cliente (`browser-image-compression`, aún no instalada).
+
+---
+
+## Sprint 3 — Registro por foto ✅
+
+### Qué se hizo
+
+- **Refactor previo**: extraje a `supabase/functions/_shared/food-entries.ts`
+  todo lo que `log-text-entry` y la nueva `log-photo-entry` tienen en común
+  (cliente autenticado con el JWT del usuario, carga de categorías, mapeo de
+  categoría, construcción de filas, esquema de la herramienta de Claude). De
+  paso corregí un detalle: la validación del body ocurría antes que la
+  comprobación de auth, así que una petición sin sesión con body vacío
+  devolvía 400 en lugar de 401 (sin impacto de seguridad real —RLS protege
+  igual— pero no era el código HTTP correcto).
+- **Edge Function `log-photo-entry`**: recibe `{ imageBase64, mediaType }`,
+  envía la imagen a Claude Sonnet junto con un prompt de estimación visual, e
+  inserta una fila por alimento detectado (mismo flujo que texto).
+- **`PhotoEntryForm.tsx`**: input de cámara nativo
+  (`<input type="file" accept="image/*" capture="environment">`, sin
+  librerías de cámara custom, tal como pide el brief) + compresión en cliente
+  con `browser-image-compression` (max 0.5MB, 1280px) antes de convertir a
+  base64 y subir.
+- `FoodEntryCard` ahora muestra un icono según el origen de la entrada
+  (✏️ texto, 📷 foto, 🔖 barcode).
+- Ambas funciones desplegadas y verificadas: rechazan consistentemente
+  peticiones sin sesión con 401.
+
+### Decisiones de diseño y por qué
+
+- **Prompt de visión más conservador que el de texto**: instruye
+  explícitamente no asumir raciones grandes salvo evidencia visual clara, ser
+  conservador con la proteína, y NO leer etiquetas/texto visible en la foto
+  salvo que sea justamente un producto envasado con etiqueta legible (en ese
+  caso, sí usarla como fuente fiable). Esto sigue al pie de la letra las
+  consideraciones de precisión del brief: la estimación de porciones por foto
+  es el eslabón más débil (hasta ~40% de error), así que el rango de
+  calorías que pide Claude es más ancho que en texto (±25-30% en vez de
+  ±15-20%).
+- **`nutrition_source = 'ai_estimate'` también para foto** (igual que texto):
+  no hay integración real con Open Food Facts por barcode en esta versión
+  (eso requeriría detección + escaneo de código de barras, fuera de alcance
+  de "hacer una foto del plato"). Si en el futuro se añade escaneo de
+  barcode como método de entrada aparte, ahí sí tendría sentido
+  `nutrition_source = 'open_food_facts'`.
+- **Sin aplicar aún el multiplicador de calibración** (igual que en Sprint 2):
+  se implementa en el Sprint 5.
+- **Verificación**: confirmé que ambas Edge Functions están desplegadas y
+  rechazan correctamente peticiones sin sesión (401). **No pude probar el
+  flujo real de sacar una foto y ver la estimación** porque no tengo cámara
+  ni acceso a tu sesión logueada. Te pido que lo pruebes tú cuando puedas:
+  entra con tu sesión, pulsa "Hacer foto de la comida", y dime si la
+  estimación te parece razonable (y si el rango de calorías se ve en la
+  tarjeta).
+
+### Pendiente / notas para el siguiente sprint
+
+- **Pendiente de tu verificación manual**: probar registro por foto en real
+  (ver arriba), además de la prueba de texto libre del Sprint 2 si aún no la
+  hiciste.
+- Sprint 4 (calendario e histórico) usará `daily_summaries` (ya recalculado
+  por trigger desde el Sprint de esquema de BD) para que las gráficas no
+  tengan que sumar filas de `food_entries` en cliente.
