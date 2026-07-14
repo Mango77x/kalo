@@ -1,14 +1,20 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './hooks/useAuth'
+import ProtectedRoute from './components/ProtectedRoute'
+import Login from './pages/Login'
+
 function App() {
   return (
-    <main className="flex min-h-full flex-col items-center justify-center gap-3 p-6 text-center">
-      <div className="flex size-16 items-center justify-center rounded-2xl bg-brand text-3xl text-brand-fg shadow-lg">
-        🥗
-      </div>
-      <h1 className="text-2xl font-semibold">Kalo</h1>
-      <p className="max-w-sm text-sm text-neutral-500">
-        Calorie tracker personal. Sprint 0 completado — esqueleto listo.
-      </p>
-    </main>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<p className="p-4">Sesión iniciada.</p>} />
+          </Route>
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
 
