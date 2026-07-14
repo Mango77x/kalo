@@ -1,5 +1,6 @@
 import { useTodayEntries } from '../hooks/useTodayEntries'
 import TextEntryForm from '../components/TextEntryForm'
+import PhotoEntryForm from '../components/PhotoEntryForm'
 import FoodEntryCard from '../components/FoodEntryCard'
 
 export default function Today() {
@@ -8,6 +9,7 @@ export default function Today() {
   return (
     <main className="flex flex-col gap-4 pb-4">
       <TextEntryForm />
+      <PhotoEntryForm />
 
       <div className="mx-4 grid grid-cols-4 gap-2 rounded-lg bg-neutral-100 p-3 text-center dark:bg-neutral-900">
         <div>

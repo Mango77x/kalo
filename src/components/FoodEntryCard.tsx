@@ -6,6 +6,12 @@ const SOURCE_LABEL: Record<FoodEntry['nutrition_source'], string> = {
   open_food_facts: 'Open Food Facts',
 }
 
+const ENTRY_SOURCE_ICON: Record<FoodEntry['source'], string> = {
+  text: '✏️',
+  photo: '📷',
+  barcode: '🔖',
+}
+
 export default function FoodEntryCard({ entry }: { entry: FoodEntry }) {
   const hasRange =
     entry.calories_min != null &&
@@ -15,7 +21,10 @@ export default function FoodEntryCard({ entry }: { entry: FoodEntry }) {
   return (
     <li className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
       <div>
-        <p className="font-medium capitalize">{entry.food_name}</p>
+        <p className="font-medium capitalize">
+          <span aria-hidden="true">{ENTRY_SOURCE_ICON[entry.source]}</span>{' '}
+          {entry.food_name}
+        </p>
         <p className="text-xs text-neutral-500">
           {entry.estimated_grams ? `~${Math.round(entry.estimated_grams)} g · ` : ''}
           {SOURCE_LABEL[entry.nutrition_source]}
