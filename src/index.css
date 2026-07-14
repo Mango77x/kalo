@@ -1,0 +1,34 @@
+@import 'tailwindcss';
+
+/*
+  Kalo — estilos base.
+  Tailwind v4 se configura vía CSS (@theme) en lugar de tailwind.config.js.
+  Aquí definimos tokens de color propios reutilizables como clases (bg-brand, text-brand...).
+*/
+@theme {
+  --color-brand: #16a34a;
+  --color-brand-dark: #15803d;
+  --color-brand-fg: #ffffff;
+}
+
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  @apply bg-neutral-50 text-neutral-900 antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    @apply bg-neutral-950 text-neutral-100;
+  }
+}

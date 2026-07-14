@@ -1,0 +1,6 @@
+# Normaliza saltos de línea a LF en el repo (proyecto multi-dispositivo).
+* text=auto eol=lf
+
+# Binarios: no tocar.
+*.png binary
+*.svg text eol=lf
