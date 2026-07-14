@@ -21,7 +21,7 @@ sesión sin leer todo el código.
 | 8      | Deploy y CI/CD               | ⬜ Pendiente  |
 
 Repo en GitHub: https://github.com/Mango77x/kalo (rama `main` al día,
-`96d8f9b`).
+`a548f76`).
 
 ---
 
@@ -36,8 +36,9 @@ Repo en GitHub: https://github.com/Mango77x/kalo (rama `main` al día,
      configure, también vale.
 
 Ya recibidas: Project URL + anon (publishable) key de Supabase, y la
-contraseña de Postgres (guardada solo en `.env`, no versionado — se usará si
-hace falta el CLI de Supabase para migraciones/link del proyecto).
+contraseña de Postgres (guardada solo en `.env`, no versionado). Conexión
+verificada: región **eu-west-1**, vía pooler de Supabase
+(`aws-0-eu-west-1.pooler.supabase.com`).
 
 ---
 
@@ -87,11 +88,43 @@ hace falta el CLI de Supabase para migraciones/link del proyecto).
 
 ### Pendiente / notas para el siguiente sprint
 
-- Sprint 2 (registro por texto libre) necesita: (a) crear el esquema de tablas
-  en Supabase (`food_entries`, `food_categories`, etc. — con RLS desde el
-  principio, según el brief), y (b) la Edge Function que interpreta texto
-  libre. Para lo primero puedo usar el CLI de Supabase (tengo ya la conexión),
-  o dejarte el SQL para que lo ejecutes tú en el SQL Editor si prefieres no
-  darme más acceso.
 - API key de Anthropic pendiente (ver credenciales arriba) — no bloquea el
   arranque de Sprint 2 si empiezo por el esquema de datos primero.
+
+---
+
+## Esquema de base de datos ✅
+
+### Qué se hizo
+
+- Migración `supabase/migrations/20260714110512_initial_schema.sql` aplicada
+  al proyecto Supabase real (no solo documentada): `food_categories` (con seed
+  de 20 categorías iniciales), `food_entries`, `calibration_factors`,
+  `calibration_feedback`, `daily_summaries`.
+- **RLS activado en las 5 tablas** desde el principio. `food_categories` es de
+  lectura pública para usuarios autenticados (taxonomía compartida, sin
+  `user_id`); el resto restringe select/insert/update/delete a
+  `auth.uid() = user_id`.
+- **Trigger `food_entries_daily_summary_trigger`**: en cada insert/update/delete
+  de `food_entries` recalcula la fila correspondiente de `daily_summaries` (vía
+  función `security definer`), para que el calendario/histórico no tengan que
+  sumar filas en cliente.
+- `src/types/database.ts` escrito a mano reflejando el esquema exacto (el
+  `gen types` automático del CLI de Supabase requiere Docker Desktop, no
+  disponible en este entorno — si en algún momento tienes Docker corriendo en
+  tu máquina, se puede regenerar automáticamente con el comando que dejo
+  comentado en el propio fichero).
+
+### Decisiones de diseño y por qué
+
+- **Conexión vía pooler de Supabase (Supavisor), no conexión directa**: la
+  conexión directa (`db.<ref>.supabase.co`) solo resuelve por IPv6 en este
+  entorno y falló; el pooler (`aws-0-eu-west-1.pooler.supabase.com`, puerto
+  5432, usuario `postgres.<project-ref>`) funciona por IPv4 sin problema. Si
+  en el futuro hace falta conectar por CLI de nuevo, usar esta forma.
+- **Verificación de RLS**: hice una petición REST anónima a `food_categories`
+  (sin sesión) y confirmé que devuelve `[]` — la política `to authenticated`
+  bloquea correctamente el acceso sin login, incluso a datos de solo lectura.
+- **`daily_summaries` sin políticas de escritura para el cliente**: solo el
+  trigger (función `security definer`) puede escribir en esa tabla; el
+  cliente únicamente puede hacer `select` de sus propias filas.
