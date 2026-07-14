@@ -9,6 +9,7 @@ import {
   createUserClient,
   getAuthenticatedUser,
   fetchCategories,
+  fetchCalibrationFactors,
   buildEntryRows,
   FOOD_ITEMS_TOOL,
   jsonResponse,
@@ -30,7 +31,11 @@ Deno.serve(async (req: Request) => {
     const { imageBase64, mediaType, consumedAt } = await req.json()
 
     if (!imageBase64 || typeof imageBase64 !== 'string') {
-      return jsonResponse(corsHeaders, { error: 'imageBase64 es obligatorio' }, 400)
+      return jsonResponse(
+        corsHeaders,
+        { error: 'imageBase64 es obligatorio' },
+        400
+      )
     }
 
     const categories = await fetchCategories(supabase)
@@ -60,10 +65,13 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const calibrationFactors = await fetchCalibrationFactors(supabase, user.id)
+
     const rows = buildEntryRows({
       userId: user.id,
       items,
       categories,
+      calibrationFactors,
       source: 'photo',
       rawInput: null,
       consumedAt,
@@ -75,7 +83,9 @@ Deno.serve(async (req: Request) => {
       .select()
 
     if (insertError) {
-      throw new Error(`No se pudieron guardar las entradas: ${insertError.message}`)
+      throw new Error(
+        `No se pudieron guardar las entradas: ${insertError.message}`
+      )
     }
 
     return jsonResponse(corsHeaders, { entries: inserted })

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
-import type { FoodEntry } from '../types'
+import type { FeedbackKind, FoodEntry } from '../types'
 
 function dayBounds(date: Date) {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -25,6 +25,9 @@ export function useEntriesForDate(date: Date) {
 
   const [entries, setEntries] = useState<FoodEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [feedbackByEntry, setFeedbackByEntry] = useState<
+    Record<string, FeedbackKind>
+  >({})
 
   const fetchEntries = useCallback(async () => {
     if (!userId) return
@@ -36,15 +39,53 @@ export function useEntriesForDate(date: Date) {
       .gte('consumed_at', start)
       .lt('consumed_at', end)
       .order('consumed_at', { ascending: true })
-    setEntries((data as FoodEntry[]) ?? [])
+    const rows = (data as FoodEntry[]) ?? []
+    setEntries(rows)
     setLoading(false)
+
+    if (rows.length === 0) {
+      setFeedbackByEntry({})
+      return
+    }
+    const { data: feedbackRows } = await supabase
+      .from('calibration_feedback')
+      .select('food_entry_id, feedback')
+      .eq('user_id', userId)
+      .in(
+        'food_entry_id',
+        rows.map((r) => r.id)
+      )
+    setFeedbackByEntry(
+      Object.fromEntries(
+        (feedbackRows ?? []).map((r) => [r.food_entry_id, r.feedback])
+      )
+    )
   }, [userId, start, end])
+
+  // Feedback de calibración ("menos"/"bien"/"más") sobre una entrada: se
+  // guarda una sola vez por entrada (ver FoodEntryCard, oculta los botones
+  // tras enviarlo) y dispara en BD el ajuste del multiplicador de la
+  // categoría (trigger calibration_feedback_apply_trigger).
+  const submitFeedback = useCallback(
+    async (entryId: string, feedback: FeedbackKind) => {
+      if (!userId) return
+      const { error } = await supabase
+        .from('calibration_feedback')
+        .insert({ food_entry_id: entryId, user_id: userId, feedback })
+      if (!error) {
+        setFeedbackByEntry((prev) => ({ ...prev, [entryId]: feedback }))
+      }
+      return error
+    },
+    [userId]
+  )
 
   useEffect(() => {
     if (!userId) return
     fetchEntries()
 
-    const isInRange = (consumedAt: string) => consumedAt >= start && consumedAt < end
+    const isInRange = (consumedAt: string) =>
+      consumedAt >= start && consumedAt < end
 
     const channel = supabase
       .channel(`food_entries_${userId}_${key}`)
@@ -76,6 +117,10 @@ export function useEntriesForDate(date: Date) {
           } else if (payload.eventType === 'DELETE') {
             const row = payload.old as FoodEntry
             setEntries((prev) => prev.filter((e) => e.id !== row.id))
+            setFeedbackByEntry((prev) => {
+              const { [row.id]: _removed, ...rest } = prev
+              return rest
+            })
           }
         }
       )
@@ -96,5 +141,5 @@ export function useEntriesForDate(date: Date) {
     { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
   )
 
-  return { entries, totals, loading }
+  return { entries, totals, loading, feedbackByEntry, submitFeedback }
 }
