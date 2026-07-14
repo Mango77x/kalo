@@ -15,10 +15,10 @@ sesión sin leer todo el código.
 | 2      | Registro por texto libre     | ✅ Completado |
 | 3      | Registro por foto            | ✅ Completado |
 | 4      | Calendario e histórico       | ✅ Completado |
-| 5      | Calibración personal         | ⬜ Pendiente  |
-| 6      | PWA e instalación en iPhone  | ⬜ Pendiente  |
-| 7      | Pulido de frontend (UX/UI)   | ⬜ Pendiente  |
-| 8      | Deploy y CI/CD               | ⬜ Pendiente  |
+| 5      | Calibración personal         | ✅ Completado |
+| 6      | PWA e instalación en iPhone  | ✅ Completado |
+| 7      | Pulido de frontend (UX/UI)   | ✅ Completado |
+| 8      | Deploy y CI/CD               | 🟡 Código listo, faltan 3 pasos manuales tuyos |
 
 Repo en GitHub: https://github.com/Mango77x/kalo (rama `main` al día,
 `320c531`).
@@ -363,3 +363,290 @@ evitar depender del envío de correos. Se implementó, pero:
   entradas reales primero.
 - El bundle de producción ya pesa ~960KB (Recharts + react-day-picker); el
   aviso de Vite sobre code-splitting lo dejo para el Sprint 7 (pulido).
+
+---
+
+## Sprint 5 — Calibración personal ✅
+
+### Qué se hizo
+
+- **Migración `supabase/migrations/20260714150000_calibration_feedback_trigger.sql`**:
+  trigger `calibration_feedback_apply_trigger` que, al insertar una fila en
+  `calibration_feedback`, ajusta `calibration_factors.correction_multiplier`
+  de la categoría de esa entrada mediante una media incremental que converge
+  hacia el feedback observado (objetivo 0.85 para "less", 1.0 para
+  "correct", 1.15 para "more"), con paso decreciente según crece
+  `sample_count`. Como el multiplicador es siempre una media ponderada de
+  valores dentro de [0.85, 1.15], nunca se sale de ese rango sin necesidad de
+  clamps explícitos. Función `security definer`, mismo patrón que el trigger
+  de `daily_summaries`.
+- **`_shared/food-entries.ts`**: nueva `fetchCalibrationFactors(supabase,
+  userId)` (lee `calibration_factors` del usuario en un `Map<category_id,
+  multiplier>`) y `buildEntryRows` ahora multiplica calorías/macros por el
+  factor de la categoría asignada (1 si no hay factor todavía) antes de
+  insertar. Ambas Edge Functions (`log-text-entry`, `log-photo-entry`) cargan
+  los factores del usuario antes de construir las filas.
+- **UI de feedback**: `FoodEntryCard` muestra tres botones ("− Menos / ✓ Bien
+  / + Más") bajo cada entrada sin feedback todavía; al pulsar uno, inserta la
+  fila en `calibration_feedback` (vía `useEntriesForDate.submitFeedback`,
+  usado tanto en `Today` como en `CalendarPage`) y pasa a mostrar el
+  feedback ya dado en su lugar (para no reenviarlo dos veces sobre la misma
+  entrada). El hook precarga el feedback existente de las entradas
+  visibles con una sola consulta a `calibration_feedback`.
+
+### Decisiones de diseño y por qué
+
+- **Media incremental en vez de un simple `+/- 0.05` fijo**: un ajuste fijo
+  no converge (oscila para siempre); la media incremental
+  (`nuevo = actual + (objetivo - actual) / (n + 1)`) da más peso a las
+  primeras muestras y se estabiliza según se acumula feedback, sin
+  necesidad de un cron ni de recalcular en batch.
+- **El multiplicador se aplica solo en el momento de insertar una entrada
+  nueva** (no retroactivamente sobre entradas ya guardadas): es coherente
+  con que `calories`/`calories_min`/`calories_max` en `food_entries`
+  representan lo que se mostró y se sumó en su momento; recalcular hacia
+  atrás mezclaría el histórico con calibraciones que aún no existían cuando
+  se registró esa comida.
+- **Feedback solo una vez por entrada**: no hay constraint `unique` en BD
+  para esto (una entrada podría en teoría recibir varias filas de
+  feedback), pero la UI lo evita ocultando los botones tras la primera
+  respuesta — es la fuente de la señal la que debe ser de una vez, no una
+  restricción de integridad que además complicaría reintentos legítimos si
+  algún día se permite corregir el feedback dado.
+- **No añadí un botón para deshacer/cambiar el feedback ya dado**: fuera de
+  alcance de "aprender de tu feedback" tal como lo pide el brief; si hace
+  falta corregir un feedback erróneo, se puede añadir en el Sprint 7
+  (pulido).
+- **Verificación**: build, lint y `tsc --noEmit` limpios. Me pasaste de
+  nuevo el Personal Access Token de Supabase (guardado otra vez en
+  `.supabase_access_token`, gitignored); con él apliqué la migración
+  (`supabase db push`) y desplegué ambas Edge Functions
+  (`supabase functions deploy --use-api`) al proyecto real. Confirmé que
+  las dos siguen rechazando peticiones sin sesión con 401. **No pude
+  probar el flujo real completo** (dar feedback y comprobar que el
+  multiplicador se aplica en la siguiente entrada de esa categoría) porque
+  requiere una sesión de usuario real.
+
+### Pendiente / notas para el siguiente sprint
+
+- **Pendiente de tu verificación manual**: registra algo, dale feedback
+  "Menos" un par de veces a la misma categoría, y confirma que la siguiente
+  estimación de esa categoría sale más baja (puedes consultar
+  `calibration_factors` en el dashboard de Supabase para ver el
+  `correction_multiplier` subir/bajar).
+- Sprint 6 (PWA) y Sprint 7 (pulido) siguen pendientes tal cual estaban.
+
+---
+
+## Sprint 6 — PWA e instalación en iPhone ✅
+
+### Qué se hizo
+
+- **`vite-plugin-pwa`** (`vite.config.ts`): genera `manifest.webmanifest` y un
+  service worker (`generateSW`, `registerType: 'autoUpdate'`) que precachea
+  el app shell (JS/CSS/HTML/iconos) para que la carga inicial sea instantánea
+  una vez instalada.
+- **Iconos** (`public/icons/icon-192.png`, `icon-512.png`,
+  `icon-512-maskable.png`, `public/apple-touch-icon.png`): generados a partir
+  del propio `favicon.svg` existente (la marca morada en forma de "K"), no
+  inventé una marca nueva. Los raricé a PNG con `sharp` (dependencia
+  temporal, instalada y desinstalada solo para este paso — no queda en
+  `package.json`) porque el entorno no tenía ninguna herramienta de
+  conversión SVG→PNG disponible.
+- **`index.html`**: añadido `<link rel="apple-touch-icon">` y las meta
+  `apple-mobile-web-app-capable` / `-status-bar-style` / `-title`. Safari en
+  iOS no lee `manifest.webmanifest` para "Añadir a pantalla de inicio": solo
+  respeta estas etiquetas explícitas, así que son imprescindibles aparte del
+  manifest (que sí cubre Chrome/Android y el resto).
+
+### Decisiones de diseño y por qué
+
+- **Sin `runtimeCaching`/estrategia offline para datos**: esta app depende
+  por completo de Supabase (auth, Realtime, Edge Functions) — cachear esas
+  respuestas serviría comida/calorías obsoletas o rotas sin conexión, peor
+  que no tener nada. El único objetivo aquí es la instalabilidad (icono en
+  el home screen, modo `standalone` sin barra de navegador, carga rápida del
+  shell), no soporte offline real.
+- **Iconos derivados del favicon.svg existente, con fondo lavanda claro
+  (`#f6f2ff`)**, no del emoji 🥗 usado en `Login.tsx`: el favicon ya era el
+  asset de marca "oficial" del proyecto (creado en Sprint 0); reusarlo evita
+  introducir una segunda identidad visual sin que me lo pidieras. El fondo
+  lavanda toma uno de los tonos que ya aparecen en los blobs decorativos del
+  propio SVG.
+- **`background_color`/`theme_color` del manifest**: `background_color`
+  (`#f6f2ff`, el mismo lavanda del icono) es el color de splash screen
+  mientras carga la app instalada; `theme_color` (`#16a34a`) es el verde de
+  marca ya usado en toda la UI (`--color-brand` en `index.css`) — se ven en
+  sitios distintos, no hacía falta que coincidieran.
+- **Verificación**: `npm run build` genera correctamente
+  `dist/manifest.webmanifest`, `dist/sw.js` y `dist/registerSW.js`;
+  confirmé a mano el contenido del manifest (nombre, iconos, `lang: es`).
+  **No pude probar la instalación real en un iPhone** (necesita HTTPS en un
+  dominio público, que llega con el Sprint 8) ni verificar visualmente el
+  ícono en un home screen real.
+
+### Pendiente / notas para el siguiente sprint
+
+- La instalación real en iPhone solo se puede probar una vez desplegado en
+  HTTPS (Sprint 8) — hasta entonces esto es "correcto sobre el papel" pero
+  no verificado en un dispositivo real.
+- Sprint 7 (pulido) puede añadir un aviso de "hay una versión nueva,
+  recarga" si `autoUpdate` no es suficientemente transparente en la
+  práctica; de momento lo dejo silencioso (se actualiza solo en el
+  siguiente `load`).
+
+---
+
+## Sprint 7 — Pulido de frontend (UX/UI) ✅
+
+### Qué se hizo
+
+- **Code-splitting de rutas** (`src/App.tsx`): `CalendarPage` e `History`
+  (las que cargan Recharts y `react-day-picker`, lo más pesado del bundle)
+  pasan a `React.lazy` + `Suspense`. El chunk principal baja de ~965KB a
+  ~629KB; `CalendarPage` queda en su propio chunk de 75KB e `History` en
+  388KB (Recharts), y solo se descargan si el usuario visita esas pestañas.
+  Sigue habiendo un aviso de Vite por el chunk principal (~629KB,
+  React+Router+Supabase+Framer Motion) — lo dejo así por ahora, ver
+  "Pendiente" más abajo.
+- **`framer-motion`** (estaba en el stack del README pero nunca se había
+  instalado): entrada/salida animada de las tarjetas de `FoodEntryCard`
+  (`AnimatePresence` + `layout` en `Today`/`CalendarPage`), transición
+  cruzada entre el bloque de botones de feedback y el texto ya dado, y un
+  fundido sutil al cambiar de pestaña (Hoy/Calendario/Histórico) en
+  `Layout.tsx`.
+- **Mensajes de error**: en `TextEntryForm`, `PhotoEntryForm` y `Login`
+  pasaron de texto rojo plano a una tarjeta con fondo/borde (mismo patrón en
+  los tres, con variante oscura), más visible sin cambiar el comportamiento.
+- **`ErrorBoundary`** (`src/components/ErrorBoundary.tsx`), envolviendo
+  `<App />` en `main.tsx`: si algo revienta en render, la app muestra una
+  pantalla de "algo ha ido mal" con botón de recargar en vez de quedarse en
+  blanco — relevante justo antes de desplegar a producción en el Sprint 8.
+
+### Decisiones de diseño y por qué
+
+- **Solo `CalendarPage`/`History` en `lazy`, no `Today`**: `Today` es la
+  ruta de aterrizaje (`/`); retrasar su descarga con un `Suspense` habría
+  añadido un salto de carga a la pantalla que se ve nada más entrar, sin
+  beneficio real (ya se descarga siempre igualmente).
+- **No perseguí el aviso de chunk >500KB hasta el final**: dividir
+  React/React Router/Supabase/Framer Motion en más chunks (`manualChunks`)
+  añade complejidad de configuración para un ahorro marginal en una app de
+  un único usuario que ya se instala como PWA (con el shell cacheado, la
+  carga inicial solo pasa una vez de verdad). Lo dejo documentado como
+  pendiente en vez de sobre-optimizar sin necesidad real.
+- **Framer Motion en las tarjetas y no en formularios/transiciones más
+  vistosas**: es donde más se nota (la lista cambia con cada registro
+  nuevo, incluido en tiempo real desde Realtime) y donde un fundido/desliz
+  suave aporta más que un simple `opacity` en CSS.
+- **`ErrorBoundary` de clase, no hook**: React todavía no tiene un hook
+  oficial para `componentDidCatch`/`getDerivedStateFromError`; una clase es
+  la única forma soportada de implementar un error boundary real.
+- **Verificación**: build, lint y `tsc --noEmit` limpios. Arranqué el
+  servidor de desarrollo y confirmé en el navegador (Browser pane) que
+  `Login` renderiza sin errores de consola ni de servidor tras todos estos
+  cambios (código/CSS válido, sin romper nada). **No pude ver las
+  animaciones ni el resto de vistas autenticadas** por lo mismo de siempre:
+  requiere sesión real vía magic link.
+
+### Pendiente / notas para el siguiente sprint
+
+- Si en el futuro el bundle principal (~629KB) se convierte en un problema
+  real de rendimiento percibido, dividir manualmente
+  `@supabase/supabase-js` y `framer-motion` en chunks separados sería el
+  siguiente paso.
+- Sprint 8 (deploy) es donde por fin se podrá probar todo esto (PWA,
+  animaciones, flujo completo) en un dispositivo real.
+
+---
+
+## Sprint 8 — Deploy y CI/CD 🟡 (código listo, faltan pasos manuales tuyos)
+
+### Qué se hizo
+
+- **`.github/workflows/ci.yml`**: en cada push a `main` y cada PR, corre
+  `format:check`, `lint` y `build` (que incluye `tsc -b`, así que cubre el
+  chequeo de tipos también). No necesita ningún secret: es una SPA y el
+  build no ejecuta el código que lee las variables de Supabase, solo lo
+  empaqueta (lo comprobé quitando `.env` a propósito y confirmando que
+  `npm run build` sigue funcionando).
+- **`npm run format` sobre todo el repo**: al añadir `format:check` a CI me
+  encontré con que ya fallaba en 13 ficheros preexistentes (nunca se había
+  exigido en un pipeline). Los reformateé todos con Prettier antes de dar
+  por bueno el workflow — si no, la primera vez que corriera CI habría
+  fallado por algo sin relación con este sprint. Son cambios de estilo
+  únicamente, ninguna lógica tocada en los ficheros que no había editado ya
+  por otro motivo.
+- **`.github/workflows/deploy.yml`**: en cada push a `main`, construye la
+  app con `VITE_BASE_PATH=/kalo/` (GitHub Pages sirve el proyecto bajo
+  `/kalo/`, no en la raíz del dominio) y las dos variables públicas de
+  Supabase desde repo secrets, y despliega `dist/` a GitHub Pages con las
+  acciones oficiales (`configure-pages`, `upload-pages-artifact`,
+  `deploy-pages`).
+- **`vite.config.ts` y `index.html` ahora son conscientes del `base`**: sin
+  esto, desplegar bajo `/kalo/` en vez de la raíz rompía todo (iconos y
+  manifest apuntando a `/icons/...` en vez de `/kalo/icons/...`,
+  `start_url`/`scope` del manifest mal calculados). Lo verifiqué compilando
+  dos veces en local, con y sin `VITE_BASE_PATH=/kalo/`, y comprobando a
+  mano el `manifest.webmanifest` y los `href`/`src` del `index.html`
+  generados en cada caso.
+- **`App.tsx`**: `<BrowserRouter basename={import.meta.env.BASE_URL}>` para
+  que las rutas de React Router funcionen bajo la subruta.
+- **Corregido un bug que habría roto el login en producción**:
+  `useAuth.tsx` construía el `emailRedirectTo` del magic link con
+  `window.location.origin`, que en GitHub Pages **no incluye la subruta**
+  (`https://mango77x.github.io`, sin `/kalo`) — el enlace mágico habría
+  llevado a un 404. Ahora es
+  `window.location.origin + import.meta.env.BASE_URL`.
+
+### Decisiones de diseño y por qué
+
+- **GitHub Pages y no Vercel/Netlify/Cloudflare Pages**: cualquiera de esos
+  habría necesitado que crearas/conectaras una cuenta externa (o me dieras
+  un token de API de esa plataforma) — no es algo que pueda hacer por mi
+  cuenta ni algo que deba pedirte a la ligera. GitHub Pages, en cambio, usa
+  el mismo repo y el `GITHUB_TOKEN` que ya existe automáticamente en cada
+  Actions run: cero cuentas nuevas.
+- **`VITE_BASE_PATH` como variable de entorno propia, no hardcodeada en
+  `vite.config.ts`**: así el build local (`npm run build`, sin la
+  variable) sigue sirviendo en la raíz `/` sin cambios, y solo el workflow
+  de deploy pasa `/kalo/`. Si en algún momento montas esto en un dominio
+  propio en vez de GitHub Pages, basta con no pasar la variable.
+- **Comprobé el bug de `emailRedirectTo` porque estaba tocando esa misma
+  zona de "URL absoluta bajo subruta"**: no habría saltado en local (ahí
+  `BASE_URL` es `/`, así que el bug es invisible) — solo se ve el problema
+  en la config real bajo GitHub Pages. Vale la pena documentarlo porque si
+  en el futuro cambias de subruta a dominio propio, hay que revisar que
+  `BASE_URL` siga calculándose bien.
+- **No toqué la configuración de Auth de Supabase (`uri_allow_list`)**: iba
+  a añadir la URL de GitHub Pages y la de desarrollo local a la lista de
+  redirects permitidos del proyecto (ahora mismo está vacía, con
+  `site_url` todavía en el valor por defecto `http://localhost:3000`) para
+  que el magic link funcione contra la URL real desplegada, pero el propio
+  entorno bloqueó la llamada a la Management API por tratarse de un cambio
+  de configuración de seguridad en un proyecto de producción que no me
+  pediste nombrando explícitamente esta acción. Queda como pendiente tuyo
+  (ver abajo) — con razón, es una decisión que te corresponde a ti.
+
+### Pendiente / notas — 3 pasos manuales para que esto quede vivo
+
+1. **Secrets del repo** (Settings → Secrets and variables → Actions →
+   "New repository secret"): añade `VITE_SUPABASE_URL` y
+   `VITE_SUPABASE_ANON_KEY` con los mismos valores que tienes en tu `.env`
+   local. Son públicas por diseño (RLS protege los datos), pero igual
+   viven como secret del repo en vez de en el código.
+2. **Activar GitHub Pages** (Settings → Pages → Source: "GitHub Actions").
+   Sin esto el workflow de deploy fallará al no encontrar el entorno
+   `github-pages`.
+3. **Redirect URLs de Supabase Auth** (dashboard del proyecto →
+   Authentication → URL Configuration → "Redirect URLs"): añade
+   `https://mango77x.github.io/kalo/**` (y opcionalmente
+   `http://localhost:5173/**` para seguir pudiendo loguearte en local).
+   Sin esto, el magic link fallará contra la app ya desplegada. Si
+   prefieres que lo haga yo, dímelo explícitamente y lo hago con el mismo
+   Personal Access Token que ya tengo — no lo hice por iniciativa propia
+   porque es un cambio de seguridad en un proyecto real.
+
+Una vez hechos estos 3 pasos, cualquier push a `main` despliega solo; la
+URL final será `https://mango77x.github.io/kalo/` — desde ahí ya se podría
+probar de verdad la instalación como PWA en un iPhone (Sprint 6).
