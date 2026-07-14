@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { DayPicker } from 'react-day-picker'
 import { es } from 'react-day-picker/locale'
 import 'react-day-picker/style.css'
@@ -7,7 +8,8 @@ import FoodEntryCard from '../components/FoodEntryCard'
 
 export default function CalendarPage() {
   const [selected, setSelected] = useState<Date>(new Date())
-  const { entries, totals, loading } = useEntriesForDate(selected)
+  const { entries, totals, loading, feedbackByEntry, submitFeedback } =
+    useEntriesForDate(selected)
 
   return (
     <main className="flex flex-col gap-4 pb-4">
@@ -29,7 +31,9 @@ export default function CalendarPage() {
           <p className="text-xs text-neutral-500">kcal</p>
         </div>
         <div>
-          <p className="text-lg font-semibold">{Math.round(totals.protein_g)}</p>
+          <p className="text-lg font-semibold">
+            {Math.round(totals.protein_g)}
+          </p>
           <p className="text-xs text-neutral-500">prot. g</p>
         </div>
         <div>
@@ -51,9 +55,16 @@ export default function CalendarPage() {
             No hay registros para este día.
           </p>
         )}
-        {entries.map((entry) => (
-          <FoodEntryCard key={entry.id} entry={entry} />
-        ))}
+        <AnimatePresence initial={false}>
+          {entries.map((entry) => (
+            <FoodEntryCard
+              key={entry.id}
+              entry={entry}
+              feedback={feedbackByEntry[entry.id]}
+              onFeedback={(feedback) => submitFeedback(entry.id, feedback)}
+            />
+          ))}
+        </AnimatePresence>
       </ul>
     </main>
   )

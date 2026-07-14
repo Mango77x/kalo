@@ -34,7 +34,11 @@ export default function MacrosBarChart({ data }: { data: Point[] }) {
     <div className="h-48 w-full">
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={c.grid} vertical={false} />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={c.grid}
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             tickLine={false}
@@ -68,9 +72,19 @@ export default function MacrosBarChart({ data }: { data: Point[] }) {
               </span>
             )}
           />
-          <Bar dataKey="protein_g" stackId="macros" fill={proteinColor} radius={[0, 0, 0, 0]} />
+          <Bar
+            dataKey="protein_g"
+            stackId="macros"
+            fill={proteinColor}
+            radius={[0, 0, 0, 0]}
+          />
           <Bar dataKey="carbs_g" stackId="macros" fill={carbsColor} />
-          <Bar dataKey="fat_g" stackId="macros" fill={fatColor} radius={[4, 4, 0, 0]} />
+          <Bar
+            dataKey="fat_g"
+            stackId="macros"
+            fill={fatColor}
+            radius={[4, 4, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

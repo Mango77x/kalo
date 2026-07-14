@@ -1,10 +1,12 @@
+import { AnimatePresence } from 'framer-motion'
 import { useTodayEntries } from '../hooks/useTodayEntries'
 import TextEntryForm from '../components/TextEntryForm'
 import PhotoEntryForm from '../components/PhotoEntryForm'
 import FoodEntryCard from '../components/FoodEntryCard'
 
 export default function Today() {
-  const { entries, totals, loading } = useTodayEntries()
+  const { entries, totals, loading, feedbackByEntry, submitFeedback } =
+    useTodayEntries()
 
   return (
     <main className="flex flex-col gap-4 pb-4">
@@ -17,7 +19,9 @@ export default function Today() {
           <p className="text-xs text-neutral-500">kcal</p>
         </div>
         <div>
-          <p className="text-lg font-semibold">{Math.round(totals.protein_g)}</p>
+          <p className="text-lg font-semibold">
+            {Math.round(totals.protein_g)}
+          </p>
           <p className="text-xs text-neutral-500">prot. g</p>
         </div>
         <div>
@@ -39,9 +43,16 @@ export default function Today() {
             Todavía no has registrado nada hoy.
           </p>
         )}
-        {entries.map((entry) => (
-          <FoodEntryCard key={entry.id} entry={entry} />
-        ))}
+        <AnimatePresence initial={false}>
+          {entries.map((entry) => (
+            <FoodEntryCard
+              key={entry.id}
+              entry={entry}
+              feedback={feedbackByEntry[entry.id]}
+              onFeedback={(feedback) => submitFeedback(entry.id, feedback)}
+            />
+          ))}
+        </AnimatePresence>
       </ul>
     </main>
   )

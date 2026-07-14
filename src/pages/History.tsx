@@ -20,7 +20,10 @@ function buildChartData(summaries: DailySummary[], days: number) {
     const summary = byDate.get(key)
     points.push({
       date: key,
-      label: cursor.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }),
+      label: cursor.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+      }),
       calories: summary?.total_calories ?? 0,
       protein_g: summary?.total_protein_g ?? 0,
       carbs_g: summary?.total_carbs_g ?? 0,

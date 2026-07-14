@@ -16,9 +16,7 @@ export default function TabBar() {
           end={tab.end}
           className={({ isActive }) =>
             `flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs transition ${
-              isActive
-                ? 'text-brand'
-                : 'text-neutral-500 dark:text-neutral-400'
+              isActive ? 'text-brand' : 'text-neutral-500 dark:text-neutral-400'
             }`
           }
         >

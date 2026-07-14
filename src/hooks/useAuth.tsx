@@ -38,9 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function signInWithEmail(email: string) {
+    // window.location.origin no incluye la subruta: bajo GitHub Pages la
+    // app vive en /kalo/ (import.meta.env.BASE_URL), no en la raíz del
+    // dominio, así que hay que añadirla o el enlace mágico llevaría a un
+    // 404 en producción.
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: {
+        emailRedirectTo: window.location.origin + import.meta.env.BASE_URL,
+      },
     })
     return { error: error?.message ?? null }
   }

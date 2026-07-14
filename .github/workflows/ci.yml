@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      # `build` incluye `tsc -b`, así que cubre el chequeo de tipos. No hace
+      # falta ninguna variable de entorno de Supabase para que compile: es
+      # una SPA (el cliente solo falla en tiempo de ejecución en el
+      # navegador, no durante el build), ver src/lib/supabase.ts.
+      - run: npm run build

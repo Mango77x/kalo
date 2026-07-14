@@ -2,7 +2,11 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- %BASE_URL% (no una ruta absoluta "/") porque bajo GitHub Pages la
+         app se sirve en /kalo/, no en la raíz del dominio; Vite sustituye
+         este placeholder por el `base` real en build. -->
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
@@ -12,6 +16,11 @@
       name="description"
       content="Kalo — calorie tracker personal. Registra comida al vuelo por texto o foto."
     />
+    <!-- Instalación como PWA en iPhone: Safari ignora el manifest.webmanifest
+         para esto y solo lee estas meta/link etiquetas explícitas. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Kalo" />
     <title>Kalo</title>
   </head>
   <body>
