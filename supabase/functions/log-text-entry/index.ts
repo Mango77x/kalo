@@ -8,6 +8,7 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { callClaudeTool } from '../_shared/anthropic.ts'
 import { fetchUserAnthropicKey } from '../_shared/user-settings.ts'
+import { enrichWithOpenFoodFacts } from '../_shared/open-food-facts.ts'
 import {
   createUserClient,
   getAuthenticatedUser,
@@ -71,11 +72,12 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const enrichedItems = await enrichWithOpenFoodFacts(items)
     const calibrationFactors = await fetchCalibrationFactors(supabase, user.id)
 
     const rows = buildEntryRows({
       userId: user.id,
-      items,
+      items: enrichedItems,
       categories,
       calibrationFactors,
       source: 'text',
@@ -105,11 +107,12 @@ Deno.serve(async (req: Request) => {
 function buildSystemPrompt(categoryNames: string[]): string {
   return `Eres un asistente nutricional. El usuario describe en texto libre y en español informal lo que ha comido, sin pesar nada. Tu tarea:
 
-1. Identifica cada alimento o plato distinto mencionado. Si vienen separados por comas o "y", son alimentos distintos; una descripción como "tostada con aguacate" es UN único plato compuesto, no lo dividas.
+1. Identifica cada alimento o plato distinto mencionado. Trátalos como alimentos separados SOLO si están enumerados como cosas independientes (separados por comas o por "y" conectando platos completos, ej. "huevos fritos, arroz y ensalada" son 3 alimentos distintos). Si la "y" o el "de" describen los INGREDIENTES de un mismo plato (ej. "tostada con aguacate", "tortilla de dos huevos y una yema", "ensalada de tomate y cebolla"), es UN único plato compuesto — no lo dividas en varias filas.
 2. Para cada uno, estima una ración razonable en gramos. No asumas raciones grandes por defecto: usa tamaños de ración habituales para un adulto, salvo que el texto indique explícitamente lo contrario (ej. "un plato grande", "ración doble", "un poco de").
 3. Calcula calorías, proteína, carbohidratos y grasa para esa ración. Sé conservador especialmente con la proteína, que tiende a sobrestimarse en estimaciones sin pesar.
 4. Da un rango de calorías (calories_min/calories_max, aprox. ±15-20% del valor central) que refleje la incertidumbre real de la estimación, no solo un número seco.
-5. Asigna cada alimento a UNA de estas categorías exactas: ${categoryNames.join(', ')}. Si ninguna encaja bien, usa "otros".
+5. Si el alimento es un PRODUCTO ENVASADO de marca reconocible (bebida energética o refresco de lata, café de cápsula, snack envasado, yogur de marca, etc.), marca is_packaged_product=true y da en product_search_name un nombre de búsqueda limpio: marca + producto, sin cantidades ni adjetivos de color/sabor que no formen parte del nombre oficial (ej. "Monster Energy Ultra" en vez de "Monster ENERGY Ultra 500 ml blanco"). Calcula igualmente tu propia estimación de nutrientes por si no se encuentra el producto — se usa como respaldo. Si NO es un producto de marca (comida casera, fruta, plato sin marca), is_packaged_product=false y product_search_name = "".
+6. Asigna cada alimento a UNA de estas categorías exactas: ${categoryNames.join(', ')}. Si ninguna encaja bien, usa "otros".
 
 Responde únicamente invocando la herramienta proporcionada, con valores numéricos realistas.`
 }

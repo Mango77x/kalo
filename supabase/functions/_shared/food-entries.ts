@@ -72,12 +72,14 @@ export async function fetchCalibrationFactors(
   )
 }
 
-function round1(n: number): number {
+export function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
 
 // Esquema de la herramienta que Claude debe rellenar, idéntico para texto y
-// foto: una lista de alimentos con su estimación nutricional.
+// foto: una lista de alimentos con su estimación nutricional. Los campos
+// is_packaged_product/product_search_name permiten cruzar con Open Food
+// Facts (ver _shared/open-food-facts.ts) cuando es un producto de marca.
 export const FOOD_ITEMS_TOOL = {
   name: 'log_food_items',
   description:
@@ -106,6 +108,16 @@ export const FOOD_ITEMS_TOOL = {
               type: 'string',
               description: 'Una de las categorías exactas proporcionadas.',
             },
+            is_packaged_product: {
+              type: 'boolean',
+              description:
+                'true si es un producto envasado de marca reconocible (lata, cápsula, snack de marca...).',
+            },
+            product_search_name: {
+              type: 'string',
+              description:
+                'Si is_packaged_product es true, nombre de búsqueda limpio (marca + producto). Si no, "".',
+            },
           },
           required: [
             'food_name',
@@ -117,6 +129,8 @@ export const FOOD_ITEMS_TOOL = {
             'carbs_g',
             'fat_g',
             'category',
+            'is_packaged_product',
+            'product_search_name',
           ],
         },
       },
@@ -135,11 +149,15 @@ export interface ParsedFoodItem {
   carbs_g: number
   fat_g: number
   category: string
+  is_packaged_product: boolean
+  product_search_name: string
 }
 
 export function buildEntryRows(params: {
   userId: string
-  items: ParsedFoodItem[]
+  items: (ParsedFoodItem & {
+    nutrition_source: 'ai_estimate' | 'open_food_facts'
+  })[]
   categories: FoodCategory[]
   calibrationFactors: Map<string, number>
   source: 'text' | 'photo'
@@ -165,7 +183,7 @@ export function buildEntryRows(params: {
       carbs_g: round1(item.carbs_g * multiplier),
       fat_g: round1(item.fat_g * multiplier),
       category_id: categoryId,
-      nutrition_source: 'ai_estimate' as const,
+      nutrition_source: item.nutrition_source,
     }
   })
 }
