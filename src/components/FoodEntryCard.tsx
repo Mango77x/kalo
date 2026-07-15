@@ -1,5 +1,7 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import type { FeedbackKind, FoodEntry } from '../types'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import { supabase } from '../lib/supabase'
+import type { FoodEntry } from '../types'
 
 const SOURCE_LABEL: Record<FoodEntry['nutrition_source'], string> = {
   ai_estimate: 'Estimación IA',
@@ -13,25 +15,29 @@ const ENTRY_SOURCE_ICON: Record<FoodEntry['source'], string> = {
   barcode: '🔖',
 }
 
-const FEEDBACK_LABEL: Record<FeedbackKind, string> = {
-  less: 'Menos de lo estimado',
-  correct: 'Estimación acertada',
-  more: 'Más de lo estimado',
-}
+export default function FoodEntryCard({ entry }: { entry: FoodEntry }) {
+  const [deleting, setDeleting] = useState(false)
 
-export default function FoodEntryCard({
-  entry,
-  feedback,
-  onFeedback,
-}: {
-  entry: FoodEntry
-  feedback?: FeedbackKind
-  onFeedback: (feedback: FeedbackKind) => void
-}) {
   const hasRange =
     entry.calories_min != null &&
     entry.calories_max != null &&
     entry.calories_min !== entry.calories_max
+
+  async function handleDelete() {
+    if (!confirm(`¿Eliminar "${entry.food_name}"?`)) return
+    setDeleting(true)
+    const { error } = await supabase
+      .from('food_entries')
+      .delete()
+      .eq('id', entry.id)
+    if (error) {
+      setDeleting(false)
+      alert('No se pudo eliminar: ' + error.message)
+      return
+    }
+    // La quitamos de la lista vía el evento Realtime DELETE (useEntriesForDate);
+    // no hace falta tocar el estado local aquí.
+  }
 
   return (
     <motion.li
@@ -64,58 +70,20 @@ export default function FoodEntryCard({
             </p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          aria-label={`Eliminar ${entry.food_name}`}
+          className="shrink-0 self-start rounded-full p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:hover:bg-red-950/40"
+        >
+          🗑️
+        </button>
       </div>
       <p className="pl-12 text-xs text-neutral-500">
         P {Math.round(entry.protein_g)}g · C {Math.round(entry.carbs_g)}g · G{' '}
         {Math.round(entry.fat_g)}g
       </p>
-
-      <AnimatePresence mode="wait" initial={false}>
-        {feedback ? (
-          <motion.p
-            key="feedback-given"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-xs text-neutral-400"
-          >
-            {FEEDBACK_LABEL[feedback]}
-          </motion.p>
-        ) : (
-          <motion.div
-            key="feedback-buttons"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-2 border-t border-neutral-200 pt-2 dark:border-neutral-800"
-          >
-            <p className="text-xs text-neutral-500">¿La ración era...?</p>
-            <div className="ml-auto flex gap-1">
-              <button
-                type="button"
-                onClick={() => onFeedback('less')}
-                className="rounded-md border border-neutral-200 px-2 py-1 text-xs dark:border-neutral-700"
-              >
-                − Menos
-              </button>
-              <button
-                type="button"
-                onClick={() => onFeedback('correct')}
-                className="rounded-md border border-neutral-200 px-2 py-1 text-xs dark:border-neutral-700"
-              >
-                ✓ Bien
-              </button>
-              <button
-                type="button"
-                onClick={() => onFeedback('more')}
-                className="rounded-md border border-neutral-200 px-2 py-1 text-xs dark:border-neutral-700"
-              >
-                + Más
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.li>
   )
 }

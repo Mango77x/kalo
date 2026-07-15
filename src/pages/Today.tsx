@@ -7,8 +7,7 @@ import MacroChips from '../components/MacroChips'
 import EntryModal from '../components/EntryModal'
 
 export default function Today() {
-  const { entries, totals, loading, feedbackByEntry, submitFeedback } =
-    useTodayEntries()
+  const { entries, totals, loading } = useTodayEntries()
   const [modalOpen, setModalOpen] = useState(false)
 
   return (
@@ -42,12 +41,7 @@ export default function Today() {
         )}
         <AnimatePresence initial={false}>
           {entries.map((entry) => (
-            <FoodEntryCard
-              key={entry.id}
-              entry={entry}
-              feedback={feedbackByEntry[entry.id]}
-              onFeedback={(feedback) => submitFeedback(entry.id, feedback)}
-            />
+            <FoodEntryCard key={entry.id} entry={entry} />
           ))}
         </AnimatePresence>
       </ul>

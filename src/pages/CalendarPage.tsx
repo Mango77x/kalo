@@ -10,8 +10,7 @@ import MacroChips from '../components/MacroChips'
 
 export default function CalendarPage() {
   const [selected, setSelected] = useState<Date>(new Date())
-  const { entries, totals, loading, feedbackByEntry, submitFeedback } =
-    useEntriesForDate(selected)
+  const { entries, totals, loading } = useEntriesForDate(selected)
 
   return (
     <main className="flex flex-col gap-4 pb-4">
@@ -49,12 +48,7 @@ export default function CalendarPage() {
         )}
         <AnimatePresence initial={false}>
           {entries.map((entry) => (
-            <FoodEntryCard
-              key={entry.id}
-              entry={entry}
-              feedback={feedbackByEntry[entry.id]}
-              onFeedback={(feedback) => submitFeedback(entry.id, feedback)}
-            />
+            <FoodEntryCard key={entry.id} entry={entry} />
           ))}
         </AnimatePresence>
       </ul>

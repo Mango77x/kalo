@@ -51,27 +51,6 @@ export function categoryIdFor(
   return categories.find((c) => c.name.toLowerCase() === 'otros')?.id ?? null
 }
 
-// Factores de corrección por categoría, aprendidos del feedback del usuario
-// (ver trigger calibration_feedback_apply_trigger). Sin feedback previo para
-// una categoría, el multiplicador es 1 (sin corrección).
-export async function fetchCalibrationFactors(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<Map<string, number>> {
-  const { data, error } = await supabase
-    .from('calibration_factors')
-    .select('category_id, correction_multiplier')
-    .eq('user_id', userId)
-  if (error) {
-    throw new Error(
-      `No se pudieron cargar los factores de calibración: ${error.message}`
-    )
-  }
-  return new Map(
-    (data ?? []).map((row) => [row.category_id, row.correction_multiplier])
-  )
-}
-
 export function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
@@ -175,33 +154,26 @@ export function buildEntryRows(params: {
     nutrition_source: 'ai_estimate' | 'open_food_facts' | 'usda'
   })[]
   categories: FoodCategory[]
-  calibrationFactors: Map<string, number>
   source: 'text' | 'photo'
   rawInput: string | null
   consumedAt?: string
 }) {
-  return params.items.map((item) => {
-    const categoryId = categoryIdFor(params.categories, item.category)
-    const multiplier =
-      (categoryId && params.calibrationFactors.get(categoryId)) || 1
-
-    return {
-      user_id: params.userId,
-      consumed_at: params.consumedAt ?? new Date().toISOString(),
-      source: params.source,
-      raw_input: params.rawInput,
-      food_name: item.food_name,
-      estimated_grams: item.estimated_grams,
-      calories_min: round1(item.calories_min * multiplier),
-      calories_max: round1(item.calories_max * multiplier),
-      calories: round1(item.calories * multiplier),
-      protein_g: round1(item.protein_g * multiplier),
-      carbs_g: round1(item.carbs_g * multiplier),
-      fat_g: round1(item.fat_g * multiplier),
-      category_id: categoryId,
-      nutrition_source: item.nutrition_source,
-    }
-  })
+  return params.items.map((item) => ({
+    user_id: params.userId,
+    consumed_at: params.consumedAt ?? new Date().toISOString(),
+    source: params.source,
+    raw_input: params.rawInput,
+    food_name: item.food_name,
+    estimated_grams: item.estimated_grams,
+    calories_min: round1(item.calories_min),
+    calories_max: round1(item.calories_max),
+    calories: round1(item.calories),
+    protein_g: round1(item.protein_g),
+    carbs_g: round1(item.carbs_g),
+    fat_g: round1(item.fat_g),
+    category_id: categoryIdFor(params.categories, item.category),
+    nutrition_source: item.nutrition_source,
+  }))
 }
 
 export function jsonResponse(

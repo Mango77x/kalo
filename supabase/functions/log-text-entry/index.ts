@@ -13,7 +13,6 @@ import {
   createUserClient,
   getAuthenticatedUser,
   fetchCategories,
-  fetchCalibrationFactors,
   buildEntryRows,
   FOOD_ITEMS_TOOL,
   jsonResponse,
@@ -73,13 +72,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const enrichedItems = await resolveNutrition(items)
-    const calibrationFactors = await fetchCalibrationFactors(supabase, user.id)
 
     const rows = buildEntryRows({
       userId: user.id,
       items: enrichedItems,
       categories,
-      calibrationFactors,
       source: 'text',
       rawInput,
       consumedAt,
