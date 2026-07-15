@@ -8,7 +8,7 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { callClaudeTool } from '../_shared/anthropic.ts'
 import { fetchUserAnthropicKey } from '../_shared/user-settings.ts'
-import { enrichWithOpenFoodFacts } from '../_shared/open-food-facts.ts'
+import { resolveNutrition } from '../_shared/nutrition-resolution.ts'
 import {
   createUserClient,
   getAuthenticatedUser,
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const enrichedItems = await enrichWithOpenFoodFacts(items)
+    const enrichedItems = await resolveNutrition(items)
     const calibrationFactors = await fetchCalibrationFactors(supabase, user.id)
 
     const rows = buildEntryRows({
@@ -111,8 +111,10 @@ function buildSystemPrompt(categoryNames: string[]): string {
 2. Para cada uno, estima una ración razonable en gramos. No asumas raciones grandes por defecto: usa tamaños de ración habituales para un adulto, salvo que el texto indique explícitamente lo contrario (ej. "un plato grande", "ración doble", "un poco de").
 3. Calcula calorías, proteína, carbohidratos y grasa para esa ración. Sé conservador especialmente con la proteína, que tiende a sobrestimarse en estimaciones sin pesar.
 4. Da un rango de calorías (calories_min/calories_max, aprox. ±15-20% del valor central) que refleje la incertidumbre real de la estimación, no solo un número seco.
-5. Si el alimento es un PRODUCTO ENVASADO de marca reconocible (bebida energética o refresco de lata, café de cápsula, snack envasado, yogur de marca, etc.), marca is_packaged_product=true y da en product_search_name un nombre de búsqueda limpio: marca + producto, sin cantidades ni adjetivos de color/sabor que no formen parte del nombre oficial (ej. "Monster Energy Ultra" en vez de "Monster ENERGY Ultra 500 ml blanco"). Calcula igualmente tu propia estimación de nutrientes por si no se encuentra el producto — se usa como respaldo. Si NO es un producto de marca (comida casera, fruta, plato sin marca), is_packaged_product=false y product_search_name = "".
-6. Asigna cada alimento a UNA de estas categorías exactas: ${categoryNames.join(', ')}. Si ninguna encaja bien, usa "otros".
+5. Si el alimento es un PRODUCTO ENVASADO de marca reconocible (bebida energética o refresco de lata, café de cápsula, snack envasado, yogur de marca, etc.), marca is_packaged_product=true y da en product_search_name un nombre de búsqueda limpio: marca + producto, sin cantidades ni adjetivos de color/sabor que no formen parte del nombre oficial (ej. "Monster Energy Ultra" en vez de "Monster ENERGY Ultra 500 ml blanco"). Si no, is_packaged_product=false y product_search_name = "".
+6. Si es un ingrediente fresco o genérico SIN marca y SIN combinar con otros en un plato complejo (ej. "pollo a la plancha", "arroz blanco", "un huevo", "una manzana"), marca is_generic_food=true y da en usda_search_term_en un término de búsqueda en INGLÉS para USDA FoodData Central (ej. "chicken breast grilled", "white rice cooked", "egg raw", "apple raw"). Si es un plato compuesto con varios ingredientes mezclados (ej. "tortilla de dos huevos y una yema", "ensalada de tomate y cebolla") o ya es un producto envasado, is_generic_food=false y usda_search_term_en = "".
+7. En cualquier caso (sea o no producto envasado o ingrediente genérico), calcula igualmente tu propia estimación de calorías/macros como si no fueras a poder consultar ninguna base de datos — se usa como respaldo si la búsqueda no encuentra el alimento.
+8. Asigna cada alimento a UNA de estas categorías exactas: ${categoryNames.join(', ')}. Si ninguna encaja bien, usa "otros".
 
 Responde únicamente invocando la herramienta proporcionada, con valores numéricos realistas.`
 }

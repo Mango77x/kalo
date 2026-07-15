@@ -1,12 +1,7 @@
-import { round1, type ParsedFoodItem } from './food-entries.ts'
-
-// Cruce con Open Food Facts para productos envasados de marca (bebidas
-// enlatadas, café de cápsula, snacks envasados...). Sin esto, Claude solo
-// "adivina" los nutrientes de un producto con etiqueta real conocible —
-// bastante menos fiable que consultar la base de datos real. Es el paso de
-// la estrategia de resolución de nutrientes del brief que habíamos dejado
-// pendiente en los Sprints 2/3 ("nutrition_source siempre ai_estimate").
-interface OffNutrients {
+// Búsqueda en Open Food Facts para productos envasados de marca (bebidas
+// enlatadas, café de cápsula, snacks envasados...). Parte de la estrategia
+// de resolución de nutrientes de _shared/nutrition-resolution.ts.
+export interface OffNutrients {
   productName: string
   caloriesPer100g: number
   proteinPer100g: number
@@ -14,7 +9,7 @@ interface OffNutrients {
   fatPer100g: number
 }
 
-async function searchOpenFoodFacts(
+export async function searchOpenFoodFacts(
   query: string
 ): Promise<OffNutrients | null> {
   if (!query.trim()) return null
@@ -50,42 +45,4 @@ async function searchOpenFoodFacts(
     // romper el registro entero por esto.
     return null
   }
-}
-
-export interface EnrichedFoodItem extends ParsedFoodItem {
-  nutrition_source: 'ai_estimate' | 'open_food_facts'
-}
-
-// Para los alimentos que Claude marcó como producto envasado, intenta
-// sustituir su estimación por los nutrientes reales de Open Food Facts
-// (escalados a los gramos estimados). Si no encuentra el producto, se queda
-// con la estimación de Claude tal cual (fallback, marcado como ai_estimate).
-export async function enrichWithOpenFoodFacts(
-  items: ParsedFoodItem[]
-): Promise<EnrichedFoodItem[]> {
-  return Promise.all(
-    items.map(async (item) => {
-      if (!item.is_packaged_product || !item.product_search_name) {
-        return { ...item, nutrition_source: 'ai_estimate' as const }
-      }
-
-      const off = await searchOpenFoodFacts(item.product_search_name)
-      if (!off) {
-        return { ...item, nutrition_source: 'ai_estimate' as const }
-      }
-
-      const factor = item.estimated_grams / 100
-      return {
-        ...item,
-        food_name: off.productName,
-        calories: round1(off.caloriesPer100g * factor),
-        calories_min: round1(off.caloriesPer100g * factor * 0.9),
-        calories_max: round1(off.caloriesPer100g * factor * 1.1),
-        protein_g: round1(off.proteinPer100g * factor),
-        carbs_g: round1(off.carbsPer100g * factor),
-        fat_g: round1(off.fatPer100g * factor),
-        nutrition_source: 'open_food_facts' as const,
-      }
-    })
-  )
 }

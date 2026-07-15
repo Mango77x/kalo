@@ -6,7 +6,7 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import { callClaudeTool } from '../_shared/anthropic.ts'
 import { fetchUserAnthropicKey } from '../_shared/user-settings.ts'
-import { enrichWithOpenFoodFacts } from '../_shared/open-food-facts.ts'
+import { resolveNutrition } from '../_shared/nutrition-resolution.ts'
 import {
   createUserClient,
   getAuthenticatedUser,
@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const enrichedItems = await enrichWithOpenFoodFacts(items)
+    const enrichedItems = await resolveNutrition(items)
     const calibrationFactors = await fetchCalibrationFactors(supabase, user.id)
 
     const rows = buildEntryRows({
@@ -120,8 +120,9 @@ function buildSystemPrompt(categoryNames: string[]): string {
 3. Si el alimento es un PRODUCTO ENVASADO con etiqueta nutricional visible y legible, úsala como fuente fiable para calcular calorías y macros de la cantidad visible. En cualquier otro caso (plato casero, comida sin envasar), NO leas ni te fíes de texto o etiquetas que puedan aparecer en la imagen: estima solo a partir de la apariencia visual del alimento.
 4. Sé especialmente conservador con la proteína: es el macronutriente que más se sobrestima al estimar porciones a ojo.
 5. Da un rango de calorías (calories_min/calories_max, aprox. ±25-30% del valor central) más amplio que en una estimación de texto, porque la estimación visual de porciones es la parte menos fiable de todo el proceso.
-6. Si el alimento es un PRODUCTO ENVASADO de marca reconocible, marca is_packaged_product=true y da en product_search_name un nombre de búsqueda limpio (marca + producto, ej. "Monster Energy Ultra"), para poder cruzarlo con una base de datos nutricional real además de tu propia lectura de la etiqueta. Si NO es un producto de marca, is_packaged_product=false y product_search_name = "".
-7. Asigna cada alimento a UNA de estas categorías exactas: ${categoryNames.join(', ')}. Si ninguna encaja bien, usa "otros".
+6. Si el alimento es un PRODUCTO ENVASADO de marca reconocible, marca is_packaged_product=true y da en product_search_name un nombre de búsqueda limpio (marca + producto, ej. "Monster Energy Ultra"), para poder cruzarlo con una base de datos nutricional real además de tu propia lectura de la etiqueta. Si no, is_packaged_product=false y product_search_name = "".
+7. Si es un ingrediente fresco o genérico SIN marca y SIN mezclar con otros en un plato complejo (ej. "pechuga de pollo a la plancha", "arroz blanco", "una manzana"), marca is_generic_food=true y da en usda_search_term_en un término de búsqueda en INGLÉS para USDA FoodData Central (ej. "chicken breast grilled", "white rice cooked", "apple raw"). Si es un plato compuesto con varios ingredientes visibles mezclados o ya es un producto envasado, is_generic_food=false y usda_search_term_en = "".
+8. Asigna cada alimento a UNA de estas categorías exactas: ${categoryNames.join(', ')}. Si ninguna encaja bien, usa "otros".
 
 Responde únicamente invocando la herramienta proporcionada, con valores numéricos realistas.`
 }

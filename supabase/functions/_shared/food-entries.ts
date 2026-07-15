@@ -78,8 +78,10 @@ export function round1(n: number): number {
 
 // Esquema de la herramienta que Claude debe rellenar, idéntico para texto y
 // foto: una lista de alimentos con su estimación nutricional. Los campos
-// is_packaged_product/product_search_name permiten cruzar con Open Food
-// Facts (ver _shared/open-food-facts.ts) cuando es un producto de marca.
+// is_packaged_product/product_search_name e is_generic_food/
+// usda_search_term_en permiten cruzar con Open Food Facts o USDA (ver
+// _shared/nutrition-resolution.ts) en vez de fiarse solo de la estimación
+// de Claude.
 export const FOOD_ITEMS_TOOL = {
   name: 'log_food_items',
   description:
@@ -118,6 +120,16 @@ export const FOOD_ITEMS_TOOL = {
               description:
                 'Si is_packaged_product es true, nombre de búsqueda limpio (marca + producto). Si no, "".',
             },
+            is_generic_food: {
+              type: 'boolean',
+              description:
+                'true si es un ingrediente fresco/genérico simple sin marca (pollo, arroz, huevo, manzana...), no un plato compuesto ni un producto envasado.',
+            },
+            usda_search_term_en: {
+              type: 'string',
+              description:
+                'Si is_generic_food es true, nombre de búsqueda en INGLÉS para USDA FoodData Central (ej. "chicken breast raw" para "pechuga de pollo"). Si no, "".',
+            },
           },
           required: [
             'food_name',
@@ -131,6 +143,8 @@ export const FOOD_ITEMS_TOOL = {
             'category',
             'is_packaged_product',
             'product_search_name',
+            'is_generic_food',
+            'usda_search_term_en',
           ],
         },
       },
@@ -151,12 +165,14 @@ export interface ParsedFoodItem {
   category: string
   is_packaged_product: boolean
   product_search_name: string
+  is_generic_food: boolean
+  usda_search_term_en: string
 }
 
 export function buildEntryRows(params: {
   userId: string
   items: (ParsedFoodItem & {
-    nutrition_source: 'ai_estimate' | 'open_food_facts'
+    nutrition_source: 'ai_estimate' | 'open_food_facts' | 'usda'
   })[]
   categories: FoodCategory[]
   calibrationFactors: Map<string, number>
