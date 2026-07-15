@@ -5,6 +5,8 @@ import { es } from 'react-day-picker/locale'
 import 'react-day-picker/style.css'
 import { useEntriesForDate } from '../hooks/useEntriesForDate'
 import FoodEntryCard from '../components/FoodEntryCard'
+import CalorieRing from '../components/CalorieRing'
+import MacroChips from '../components/MacroChips'
 
 export default function CalendarPage() {
   const [selected, setSelected] = useState<Date>(new Date())
@@ -25,24 +27,14 @@ export default function CalendarPage() {
         />
       </div>
 
-      <div className="mx-4 grid grid-cols-4 gap-2 rounded-lg bg-neutral-100 p-3 text-center dark:bg-neutral-900">
-        <div>
-          <p className="text-lg font-semibold">{Math.round(totals.calories)}</p>
-          <p className="text-xs text-neutral-500">kcal</p>
-        </div>
-        <div>
-          <p className="text-lg font-semibold">
-            {Math.round(totals.protein_g)}
-          </p>
-          <p className="text-xs text-neutral-500">prot. g</p>
-        </div>
-        <div>
-          <p className="text-lg font-semibold">{Math.round(totals.carbs_g)}</p>
-          <p className="text-xs text-neutral-500">carb. g</p>
-        </div>
-        <div>
-          <p className="text-lg font-semibold">{Math.round(totals.fat_g)}</p>
-          <p className="text-xs text-neutral-500">grasa g</p>
+      <div className="mx-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <CalorieRing calories={totals.calories} />
+        <div className="mt-3">
+          <MacroChips
+            protein_g={totals.protein_g}
+            carbs_g={totals.carbs_g}
+            fat_g={totals.fat_g}
+          />
         </div>
       </div>
 

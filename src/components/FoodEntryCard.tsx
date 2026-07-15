@@ -40,23 +40,19 @@ export default function FoodEntryCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.2 }}
-      className="flex flex-col gap-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800"
+      className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-medium capitalize">
-            <span aria-hidden="true">{ENTRY_SOURCE_ICON[entry.source]}</span>{' '}
-            {entry.food_name}
-          </p>
+      <div className="flex items-center gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-lg">
+          <span aria-hidden="true">{ENTRY_SOURCE_ICON[entry.source]}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium capitalize">{entry.food_name}</p>
           <p className="text-xs text-neutral-500">
             {entry.estimated_grams
               ? `~${Math.round(entry.estimated_grams)} g · `
               : ''}
             {SOURCE_LABEL[entry.nutrition_source]}
-          </p>
-          <p className="mt-1 text-xs text-neutral-500">
-            P {Math.round(entry.protein_g)}g · C {Math.round(entry.carbs_g)}g ·
-            G {Math.round(entry.fat_g)}g
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -69,6 +65,10 @@ export default function FoodEntryCard({
           )}
         </div>
       </div>
+      <p className="pl-12 text-xs text-neutral-500">
+        P {Math.round(entry.protein_g)}g · C {Math.round(entry.carbs_g)}g · G{' '}
+        {Math.round(entry.fat_g)}g
+      </p>
 
       <AnimatePresence mode="wait" initial={false}>
         {feedback ? (
@@ -87,7 +87,7 @@ export default function FoodEntryCard({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex items-center gap-2 border-t border-neutral-100 pt-2 dark:border-neutral-800"
+            className="flex items-center gap-2 border-t border-neutral-200 pt-2 dark:border-neutral-800"
           >
             <p className="text-xs text-neutral-500">¿La ración era...?</p>
             <div className="ml-auto flex gap-1">
