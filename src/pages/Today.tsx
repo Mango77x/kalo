@@ -1,37 +1,34 @@
+import { useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useTodayEntries } from '../hooks/useTodayEntries'
-import TextEntryForm from '../components/TextEntryForm'
-import PhotoEntryForm from '../components/PhotoEntryForm'
 import FoodEntryCard from '../components/FoodEntryCard'
+import CalorieRing from '../components/CalorieRing'
+import MacroChips from '../components/MacroChips'
+import EntryModal from '../components/EntryModal'
 
 export default function Today() {
   const { entries, totals, loading, feedbackByEntry, submitFeedback } =
     useTodayEntries()
+  const [modalOpen, setModalOpen] = useState(false)
 
   return (
     <main className="flex flex-col gap-4 pb-4">
-      <TextEntryForm />
-      <PhotoEntryForm />
-
-      <div className="mx-4 grid grid-cols-4 gap-2 rounded-lg bg-neutral-100 p-3 text-center dark:bg-neutral-900">
-        <div>
-          <p className="text-lg font-semibold">{Math.round(totals.calories)}</p>
-          <p className="text-xs text-neutral-500">kcal</p>
+      <div className="mx-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <CalorieRing calories={totals.calories} />
+        <div className="mt-3">
+          <MacroChips
+            protein_g={totals.protein_g}
+            carbs_g={totals.carbs_g}
+            fat_g={totals.fat_g}
+          />
         </div>
-        <div>
-          <p className="text-lg font-semibold">
-            {Math.round(totals.protein_g)}
-          </p>
-          <p className="text-xs text-neutral-500">prot. g</p>
-        </div>
-        <div>
-          <p className="text-lg font-semibold">{Math.round(totals.carbs_g)}</p>
-          <p className="text-xs text-neutral-500">carb. g</p>
-        </div>
-        <div>
-          <p className="text-lg font-semibold">{Math.round(totals.fat_g)}</p>
-          <p className="text-xs text-neutral-500">grasa g</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="mt-3 w-full rounded-xl bg-brand px-4 py-3 font-medium text-brand-fg transition active:scale-[0.98]"
+        >
+          + Registrar comida
+        </button>
       </div>
 
       <ul className="flex flex-col gap-2 px-4">
@@ -54,6 +51,8 @@ export default function Today() {
           ))}
         </AnimatePresence>
       </ul>
+
+      {modalOpen && <EntryModal onClose={() => setModalOpen(false)} />}
     </main>
   )
 }
