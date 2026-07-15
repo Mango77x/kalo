@@ -925,9 +925,9 @@ Sigue aceptando una frase en una sola línea para quien lo prefiera.
 
 ### Pendiente
 
-- **Recomendado pero no bloqueante**: pedir una API key propia de USDA
-  (gratis, instantánea, https://fdc.nal.usda.gov/api-key-signup.html) para
-  no depender de la `DEMO_KEY` compartida, que se agota fácilmente con
-  varios usuarios. Sin ella, USDA simplemente fallará más a menudo y caerá
-  con gracia al respaldo de estimación de Claude — no rompe nada, solo
-  reduce cuántas veces se usa el dato real en vez de la estimación.
+- ~~Recomendado pero no bloqueante: pedir una API key propia de USDA~~ —
+  **hecho**. El usuario la consiguió (gratis, instantánea) y se configuró
+  como secret `USDA_API_KEY` en Supabase. El código ya la prioriza sobre la
+  `DEMO_KEY` compartida sin ningún cambio de código (solo el secret) — el
+  cruce con USDA debería ser fiable ahora en vez de agotarse con el límite
+  de 30/hora compartido globalmente.
