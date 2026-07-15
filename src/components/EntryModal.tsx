@@ -142,6 +142,20 @@ export default function EntryModal({ onClose }: { onClose: () => void }) {
             ✕
           </button>
 
+          {/* Siempre montado (no solo en el paso 'photo'): si estuviera
+              dentro del condicional, el ref sería null en el momento de
+              handlePhotoButtonClick (React aún no habría re-renderizado con
+              step='photo'), y el .click() no abriría nada — justo el bug de
+              "se queda en Abriendo cámara" en móvil. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
           {step === 'choice' && (
             <div className="flex flex-1 flex-col items-center justify-center gap-6">
               <h2 className="text-lg font-semibold">¿Qué has comido?</h2>
@@ -199,14 +213,6 @@ export default function EntryModal({ onClose }: { onClose: () => void }) {
 
           {step === 'photo' && (
             <div className="mt-12 flex flex-1 flex-col gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                className="hidden"
-              />
               {photoPreviewUrl ? (
                 <>
                   <div className="flex flex-1 items-center justify-center overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
