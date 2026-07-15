@@ -187,13 +187,19 @@ export default function EntryModal({ onClose }: { onClose: () => void }) {
           {step === 'text' && (
             <form
               onSubmit={handleTextSubmit}
-              className="mt-12 flex flex-1 flex-col gap-3"
+              className="mt-12 flex flex-1 flex-col gap-2"
             >
+              <p className="text-xs text-neutral-500">
+                Un alimento por línea, como una lista de la compra — es más
+                rápido y más preciso que una frase larga.
+              </p>
               <textarea
                 autoFocus
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Ej: 2 huevos y una tostada con aguacate"
+                placeholder={
+                  '2 huevos\n1 tostada con aguacate\n1 café con leche'
+                }
                 className="flex-1 w-full resize-none rounded-xl border border-neutral-300 bg-white p-4 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 dark:border-neutral-700 dark:bg-neutral-900"
               />
               <button

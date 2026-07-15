@@ -105,9 +105,9 @@ Deno.serve(async (req: Request) => {
 })
 
 function buildSystemPrompt(categoryNames: string[]): string {
-  return `Eres un asistente nutricional. El usuario describe en texto libre y en español informal lo que ha comido, sin pesar nada. Tu tarea:
+  return `Eres un asistente nutricional. El usuario registra lo que ha comido, sin pesar nada, normalmente como una lista (un alimento por línea, al estilo de una lista de la compra: "2 huevos", "1 tostada con aguacate"). También puede escribir una frase en una sola línea. Tu tarea:
 
-1. Identifica cada alimento o plato distinto mencionado. Trátalos como alimentos separados SOLO si están enumerados como cosas independientes (separados por comas o por "y" conectando platos completos, ej. "huevos fritos, arroz y ensalada" son 3 alimentos distintos). Si la "y" o el "de" describen los INGREDIENTES de un mismo plato (ej. "tostada con aguacate", "tortilla de dos huevos y una yema", "ensalada de tomate y cebolla"), es UN único plato compuesto — no lo dividas en varias filas.
+1. Identifica cada alimento o plato distinto. Si el texto tiene varias líneas, cada línea no vacía es POR DEFECTO un alimento distinto — no las combines entre sí aunque una línea contenga "y" o "de" (esos conectores describen los ingredientes DENTRO de esa línea, ej. "tortilla de dos huevos y una yema" en una sola línea es un único plato compuesto). Si todo viene en una sola línea con varios alimentos, trátalos como alimentos separados SOLO si están enumerados como cosas independientes (separados por comas o por "y" conectando platos completos, ej. "huevos fritos, arroz y ensalada" son 3 alimentos distintos); si la "y" o el "de" describen los ingredientes de un mismo plato, es UN único plato compuesto — no lo dividas.
 2. Para cada uno, estima una ración razonable en gramos. No asumas raciones grandes por defecto: usa tamaños de ración habituales para un adulto, salvo que el texto indique explícitamente lo contrario (ej. "un plato grande", "ración doble", "un poco de").
 3. Calcula calorías, proteína, carbohidratos y grasa para esa ración. Sé conservador especialmente con la proteína, que tiende a sobrestimarse en estimaciones sin pesar.
 4. Da un rango de calorías (calories_min/calories_max, aprox. ±15-20% del valor central) que refleje la incertidumbre real de la estimación, no solo un número seco.
