@@ -931,3 +931,47 @@ Sigue aceptando una frase en una sola línea para quien lo prefiera.
   `DEMO_KEY` compartida sin ningún cambio de código (solo el secret) — el
   cruce con USDA debería ser fiable ahora en vez de agotarse con el límite
   de 30/hora compartido globalmente.
+
+---
+
+## Post-lanzamiento (4) — borrar registros y quitar calibración ✅
+
+### Borrar entradas
+
+Botón de papelera en `FoodEntryCard` (Hoy y Calendario, mismo componente).
+El backend ya estaba listo desde el esquema inicial del proyecto — no hizo
+falta ninguna migración:
+- RLS ya tenía la política `food_entries: delete propias`.
+- `calibration_feedback.food_entry_id` ya tenía `on delete cascade`.
+- El trigger de `daily_summaries` ya manejaba el evento `DELETE` (recalcula
+  el resumen del día al borrar).
+- La suscripción Realtime (`useEntriesForDate`) ya escuchaba eventos
+  `DELETE` y quitaba la fila del estado local — no hizo falta lógica nueva
+  de UI aparte del propio botón + `confirm()` antes de borrar.
+
+### Quitar la UI de calibración (Sprint 5)
+
+El usuario señaló, con razón, que pedirle al usuario feedback tipo
+"¿la ración era menos/bien/más de lo estimado?" no tiene sentido si nunca
+pesa la comida — no tiene forma real de juzgarlo. Se quitó:
+- El bloque de botones "¿La ración era...?" de `FoodEntryCard`.
+- La carga/guardado de `calibration_feedback` en `useEntriesForDate`.
+- La aplicación del multiplicador de `calibration_factors` en
+  `buildEntryRows` y en ambas Edge Functions — importante quitarlo también
+  aquí, no solo la UI: si no, cualquier multiplicador ya acumulado durante
+  las pruebas (Sprint 5, un par de horas de uso real) seguiría ajustando
+  en silencio las estimaciones nuevas sin que nadie pudiera ya corregirlo
+  ni saber que estaba pasando.
+
+**No se borraron las tablas `calibration_factors`/`calibration_feedback`**
+de la base de datos — solo se dejaron de usar. Eliminar tablas es una
+acción más destructiva y no es lo que se pidió; quedan ahí sin uso, sin
+riesgo, por si en el futuro se quiere retomar la idea de otra forma (por
+ejemplo, un ajuste manual explícito en vez de un multiplicador automático
+silencioso).
+
+### Pendiente
+
+- Nada bloqueante. Si en algún momento se quiere limpiar del todo, sería
+  una migración aparte para hacer `drop table` de las dos tablas — no se
+  hizo por precaución (acción destructiva no pedida explícitamente).
