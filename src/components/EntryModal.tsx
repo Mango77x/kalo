@@ -145,15 +145,20 @@ export default function EntryModal({ onClose }: { onClose: () => void }) {
           {/* Siempre montado (no solo en el paso 'photo'): si estuviera
               dentro del condicional, el ref sería null en el momento de
               handlePhotoButtonClick (React aún no habría re-renderizado con
-              step='photo'), y el .click() no abriría nada — justo el bug de
-              "se queda en Abriendo cámara" en móvil. */}
+              step='photo'), y el .click() no abriría nada.
+              `sr-only` en vez de `hidden` (display:none) a propósito: varios
+              navegadores móviles (Safari iOS incluido) BLOQUEAN en silencio
+              el .click() programático sobre un <input type="file"> oculto
+              con display:none — no pasa nada, sin error, sin permisos. Con
+              `sr-only` (position:absolute + clip, sigue "interactuable")
+              el click programático sí dispara la cámara/selector nativo. */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             capture="environment"
             onChange={handleFileChange}
-            className="hidden"
+            className="sr-only"
           />
 
           {step === 'choice' && (
