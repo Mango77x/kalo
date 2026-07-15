@@ -1039,3 +1039,43 @@ precisión).
   palanca real sin perder precisión sería reducir aún más la resolución de
   compresión de imagen (actualmente 1280px), a costa de algo de detalle
   visual para la estimación.
+
+---
+
+## Post-lanzamiento (6) — vista de detalle al pulsar una entrada ✅
+
+El usuario señaló que el nombre del alimento se trunca en la tarjeta de la
+lista (necesario para que quepa en una línea) y con platos descritos con
+detalle ("una tortilla de dos huevos con una yema extra y un poco de sal
+marina...") ese texto queda cortado y no se puede leer.
+
+### Qué se hizo
+
+- **`FoodEntryDetailModal.tsx`**: modal (mismo lenguaje visual que
+  `EntryModal`/`SettingsModal` — bottom sheet con blur de fondo) que
+  muestra: nombre completo sin truncar, fecha y hora del registro,
+  calorías con el rango completo, gramos estimados, macros (reutiliza
+  `MacroChips`), fuente de los datos nutricionales, y el **texto original
+  que escribió el usuario** (`raw_input`) cuando el registro fue por texto
+  — útil para ver exactamente qué se interpretó, no solo el resultado.
+- **`FoodEntryCard.tsx`**: toda la tarjeta es pulsable (abre el detalle);
+  el botón de borrar sigue funcionando independientemente parando la
+  propagación del clic (`stopPropagation`), para no abrir el detalle al
+  borrar por accidente.
+
+### Verificación
+
+Probado en navegador con un caso de plato compuesto largo a propósito: la
+tarjeta lo trunca correctamente (confirma el problema original), y al
+pulsarla el modal muestra el nombre completo, la fecha formateada, y el
+`raw_input` completo sin cortar. Confirmado también que el botón "Cerrar"
+del modal funciona.
+
+### Decisiones y por qué
+
+- **No se creó una ruta/página aparte para el detalle**: un modal encaja
+  mejor con el patrón ya establecido en la app (`EntryModal`,
+  `SettingsModal`) y no rompe el flujo de navegación por pestañas.
+- **Se muestra `raw_input` solo si existe**: las entradas por foto no
+  tienen texto original que mostrar (raw_input es null), así que esa
+  sección del modal se omite automáticamente en ese caso.
