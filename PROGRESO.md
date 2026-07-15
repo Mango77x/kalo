@@ -975,3 +975,67 @@ silencioso).
 - Nada bloqueante. Si en algún momento se quiere limpiar del todo, sería
   una migración aparte para hacer `drop table` de las dos tablas — no se
   hizo por precaución (acción destructiva no pedida explícitamente).
+
+---
+
+## Post-lanzamiento (5) — coste de tokens: quitar caching, texto a Haiku ✅
+
+El usuario reportó gastar ~5 céntimos de dólar en solo 5-6 registros de
+texto y preguntó por qué. Se diagnosticó con datos reales (llamadas de
+prueba a la API de Anthropic, inspeccionando el campo `usage` de la
+respuesta) en vez de suponer.
+
+### Hallazgo 1 — el prompt caching que añadimos estaba siendo contraproducente
+
+El caché ephemeral de Anthropic dura 5 minutos. El patrón de uso real de
+esta app es registros espaciados por horas (desayuno, comida, cena), no
+varios por minuto. Con dos llamadas de prueba separadas por más de 5
+minutos se confirmó: **cada llamada pagaba el precio de "crear caché"
+(1.25x el precio normal de esos tokens) y nunca el de "leer caché" (0.1x,
+mucho más barato)** — es decir, el caching hacía que se pagara *más* que
+si no existiera. Se quitó el `cache_control` de `_shared/anthropic.ts`.
+Lección: una optimización de coste "de manual" (prompt caching) puede ser
+negativa si no encaja con el patrón de uso real — hay que medir, no asumir.
+
+### Hallazgo 2 — el texto se procesaba con Sonnet sin necesitarlo
+
+Medido (no estimado): el system prompt + el esquema de la herramienta pesan
+**2336 tokens** en cada llamada. Se estaban procesando con Sonnet para una
+tarea que es, en el fondo, extracción/clasificación de texto — no
+estimación visual de porciones. El brief solo pide Sonnet para **fotos**
+(por la diferencia de precisión documentada, R² 0.60 vs 0.23); nunca dijo
+que el texto tuviera que compartir modelo.
+
+**Cambiado `log-text-entry` a Claude Haiku 4.5**, sustancialmente más
+barato por token que Sonnet. Verificado repitiendo los mismos 3 casos de
+prueba usados para validar los fixes anteriores (tortilla, Monster Energy,
+pollo+arroz): resultados idénticos en calidad, incluida la detección
+correcta de `is_packaged_product`/`is_generic_food` y los términos de
+búsqueda para Open Food Facts/USDA.
+
+`log-photo-entry` sigue en Sonnet, sin cambios — ahí sí importa la
+precisión visual según el brief, y las fotos ya son inherentemente más
+caras por los tokens de imagen (inevitable si se quiere mantener esa
+precisión).
+
+### Decisiones y por qué
+
+- **No se intentó cachear con TTL de 1 hora en vez de quitarlo del todo**:
+  aunque existe esa opción, con el patrón de uso real (unos pocos registros
+  al día, horas de diferencia) tampoco tendría muchos aciertos — más
+  simple y más barato quitarlo directamente que mantener complejidad para
+  un beneficio marginal.
+- **Solo se cambió el modelo de texto, no el de foto**: es la única
+  diferenciación que el propio brief justifica explícitamente con datos
+  (R² de precisión). Cambiar fotos a Haiku habría sido "optimizar" en
+  contra de un requisito explícito de calidad del proyecto.
+- **Verificación con datos reales, no suposiciones**: todo el diagnóstico
+  se basó en llamadas reales a la API y su campo `usage`, no en estimar
+  de memoria cuánto "debería" costar cada llamada.
+
+### Pendiente
+
+- Nada bloqueante. Si en el futuro el coste de fotos preocupa, la única
+  palanca real sin perder precisión sería reducir aún más la resolución de
+  compresión de imagen (actualmente 1280px), a costa de algo de detalle
+  visual para la estimación.
