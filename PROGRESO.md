@@ -18,37 +18,31 @@ sesión sin leer todo el código.
 | 5      | Calibración personal         | ✅ Completado |
 | 6      | PWA e instalación en iPhone  | ✅ Completado |
 | 7      | Pulido de frontend (UX/UI)   | ✅ Completado |
-| 8      | Deploy y CI/CD               | 🟡 Código listo, faltan 3 pasos manuales tuyos |
+| 8      | Deploy y CI/CD               | ✅ Completado y verificado en producción |
 
+App en producción: **https://mango77x.github.io/kalo/**
 Repo en GitHub: https://github.com/Mango77x/kalo (rama `main` al día,
-`320c531`).
+`3a746b8`).
 
 ---
 
-## 🔑 CREDENCIALES Y BLOQUEANTES
+## 🔑 CREDENCIALES Y ESTADO
 
-Todas las credenciales de infraestructura están recibidas y configuradas:
-Project URL + anon (publishable) key de Supabase, contraseña de Postgres, API
-key de Anthropic (secret de las Edge Functions, no vive en el frontend), y un
-Personal Access Token de Supabase (uso puntual para CLI, guardado en
-`.supabase_access_token`, gitignored).
+Todo lo de infraestructura está configurado y verificado en real (no solo en
+local): Supabase (Auth, DB, Edge Functions, Storage no usado), GitHub Pages +
+Actions, Resend (SMTP propio, sin límite de emails), Google OAuth.
 
-**⚠️ Bloqueante activo: saldo de la cuenta de Anthropic agotado.** Al probar
-el registro por texto/foto en real, la API de Claude devuelve *"Your credit
-balance is too low to access the Anthropic API"*. Esto bloquea funcionalmente
-los Sprints 2 y 3 (ya implementados y desplegados, pero no usables hasta
-resolver esto). Necesitas añadir crédito/método de pago en
-console.anthropic.com → Plans & Billing. No es algo que yo pueda gestionar
-(pagos/facturación).
-
-**Límite de emails de Supabase (rate_limit_email_sent)**: el proyecto tiene el
-límite por defecto de 2 emails/hora para magic link, compartido y no
-ampliable sin configurar SMTP propio (lo intenté vía API de gestión y
-Supabase lo rechaza explícitamente sin custom SMTP). Ya conseguiste iniciar
-sesión una vez — la sesión persiste (`persistSession: true`), así que no
-debería volver a bloquear el acceso normal. Si en el futuro necesitas otro
-magic link (otro dispositivo, sesión expirada) y te topas con el límite, solo
-queda esperar a que resetee o configurar SMTP propio en el dashboard.
+- **API key de Anthropic: ya NO es un secret compartido del proyecto.** Desde
+  el sprint de BYOK, cada usuario mete la suya en Ajustes (⚙️ en el header) y
+  se guarda cifrada (ver más abajo). El antiguo bloqueante de "saldo de
+  Anthropic agotado" ya no aplica al proyecto en sí — cada persona gestiona su
+  propia cuenta y su propio saldo.
+- **Login**: magic link (con SMTP propio de Resend, sin límite de 2
+  emails/hora) y login con Google (OAuth configurado y verificado
+  end-to-end). Sesión persistente (`persistSession: true`).
+- **Personal Access Token de Supabase** (uso puntual para CLI/deploys de
+  Edge Functions): guardado en `.supabase_access_token`, gitignored, nunca en
+  el repo.
 
 Conexión DB verificada: región **eu-west-1**, vía pooler de Supabase
 (`aws-0-eu-west-1.pooler.supabase.com`).
@@ -560,7 +554,7 @@ evitar depender del envío de correos. Se implementó, pero:
 
 ---
 
-## Sprint 8 — Deploy y CI/CD 🟡 (código listo, faltan pasos manuales tuyos)
+## Sprint 8 — Deploy y CI/CD ✅
 
 ### Qué se hizo
 
@@ -628,25 +622,149 @@ evitar depender del envío de correos. Se implementó, pero:
   pediste nombrando explícitamente esta acción. Queda como pendiente tuyo
   (ver abajo) — con razón, es una decisión que te corresponde a ti.
 
-### Pendiente / notas — 3 pasos manuales para que esto quede vivo
+### Los 3 pasos manuales — completados
 
-1. **Secrets del repo** (Settings → Secrets and variables → Actions →
-   "New repository secret"): añade `VITE_SUPABASE_URL` y
-   `VITE_SUPABASE_ANON_KEY` con los mismos valores que tienes en tu `.env`
-   local. Son públicas por diseño (RLS protege los datos), pero igual
-   viven como secret del repo en vez de en el código.
-2. **Activar GitHub Pages** (Settings → Pages → Source: "GitHub Actions").
-   Sin esto el workflow de deploy fallará al no encontrar el entorno
-   `github-pages`.
-3. **Redirect URLs de Supabase Auth** (dashboard del proyecto →
-   Authentication → URL Configuration → "Redirect URLs"): añade
-   `https://mango77x.github.io/kalo/**` (y opcionalmente
-   `http://localhost:5173/**` para seguir pudiendo loguearte en local).
-   Sin esto, el magic link fallará contra la app ya desplegada. Si
-   prefieres que lo haga yo, dímelo explícitamente y lo hago con el mismo
-   Personal Access Token que ya tengo — no lo hice por iniciativa propia
-   porque es un cambio de seguridad en un proyecto real.
+Los hiciste tú (y en el caso de las redirect URLs, lo hice yo con tu
+confirmación explícita después):
 
-Una vez hechos estos 3 pasos, cualquier push a `main` despliega solo; la
-URL final será `https://mango77x.github.io/kalo/` — desde ahí ya se podría
-probar de verdad la instalación como PWA en un iPhone (Sprint 6).
+1. **Secrets del repo** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) —
+   añadidos en Settings → Secrets and variables → Actions.
+2. **GitHub Pages activado** (Settings → Pages → Source: "GitHub Actions").
+3. **Redirect URLs de Supabase Auth** — configuradas vía API de gestión
+   (con tu confirmación explícita): `site_url` a
+   `https://mango77x.github.io/kalo/` y `uri_allow_list` con esa URL +
+   `http://localhost:5173/**`.
+
+Cualquier push a `main` despliega solo. URL final:
+**https://mango77x.github.io/kalo/**.
+
+### Bugs de producción encontrados y arreglados después del primer deploy
+
+Ninguno de estos aparecía en local — solo se veían con la app realmente
+desplegada, así que los fui encontrando y arreglando uno a uno según los
+reportabas:
+
+- **Deploy fallaba** (`configure-pages` action): GitHub Pages nunca se había
+  activado (confirmado con `GET /repos/.../pages` → 404). Lo activaste tú.
+- **Sitio en blanco**: los secrets del repo no estaban aún, así que el build
+  horneó `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` vacíos y la app
+  lanzaba su propio error de "faltan credenciales" al cargar. Confirmé
+  descargando el bundle publicado y comprobando que la URL real de Supabase
+  no estaba dentro.
+- **Service Worker sirviendo la versión rota en caché**: al arreglar los
+  secrets, mi propio navegador de pruebas seguía viendo la versión vieja
+  porque el Service Worker (PWA) ya había cacheado el app shell roto en la
+  primera visita. Hubo que desregistrarlo y limpiar caches a mano para ver
+  el fix.
+- **Magic link redirigía a `localhost:3000`**: `site_url` de Supabase Auth
+  seguía en el valor por defecto de un proyecto nuevo, sin relación con nada
+  que hubiéramos tocado nosotros.
+- **Login en el email de prueba mostraba `{}` en rojo**: no era un problema
+  de redirect sino que `signInWithOtp`/`signUp` fallaban al enviar el email
+  (rate limit de 2/hora del SMTP por defecto de Supabase, agotado de tanto
+  probar). Solución definitiva: SMTP propio con Resend (gratis, sin límite),
+  que configuraste tú en el dashboard.
+- **`{}` seguía saliendo después de eso, específico de instalar la PWA en
+  iPhone y abrir el enlace desde la app de Mail**: el SDK usa PKCE por
+  defecto, que exige abrir el enlace en el mismo navegador/contexto que
+  pidió el login — la app de Mail en iOS abre los enlaces en un contexto
+  distinto (sin acceso al `code_verifier` guardado). Arreglado forzando
+  `flowType: 'implicit'` en `src/lib/supabase.ts`, que no depende de ese
+  storage compartido.
+
+### Pendiente / notas
+
+- Con el deploy y el login ya verificados en real, el siguiente paso lógico
+  es probar formalmente la instalación como PWA en un iPhone (Sprint 6 ya
+  implementado, pero conviene confirmarlo con el dominio real desplegado en
+  vez de local).
+
+---
+
+## Post-lanzamiento — rediseño visual, BYOK cifrado y login con Google ✅
+
+Con la app ya en producción, esta tanda de trabajo respondió a feedback de
+uso real en vez de seguir el plan de sprints al pie de la letra.
+
+### Rediseño visual (dirección "Opción B")
+
+Te enseñé dos mockups (minimal vs. visual con anillo de progreso) con la
+skill de dataviz del proyecto; elegiste la segunda:
+
+- `CalorieRing` (anillo SVG, meta diaria de referencia fija en 2000 kcal —
+  no hay pantalla de ajustes de objetivo, es un valor simple) +
+  `MacroChips` (proteína/carbos/grasa en tarjetas de color), reutilizados en
+  Hoy y Calendario.
+- **`EntryModal`**: sustituye los formularios de texto/foto que estaban
+  siempre visibles por un botón "Registrar comida" que abre un modal grande
+  con fondo difuminado. Paso 1: elegir Texto o Foto (con iconos). Texto:
+  formulario con flecha para volver atrás. Foto: abre la cámara nativa
+  directamente y, tras elegir/hacer la foto, muestra un preview con botón
+  "Registrar" (antes se subía automáticamente al elegir el archivo).
+  `TextEntryForm.tsx`/`PhotoEntryForm.tsx` quedaron eliminados, su lógica
+  vive ahora dentro del modal.
+
+### API key por usuario (BYOK), cifrada, y prompt caching
+
+Surgió de dos preguntas tuyas: "si comparto la app, ¿pueden gastarme la API
+de Claude?" y "¿está optimizado el consumo de tokens?".
+
+- **Nueva tabla `user_settings`** (RLS: cada usuario solo ve/edita la suya).
+  Cada usuario mete su propia API key de Anthropic en Ajustes (⚙️ en el
+  header) — sin key propia, no puede usar el registro por texto/foto. Así un
+  registro público nunca consume la cuota de otra persona.
+- **Cifrado en reposo de verdad**: al principio iba a guardar la key tal
+  cual y poner un aviso de "está cifrada" — me paraste con razón a
+  comprobarlo antes de afirmarlo. Implementé AES-256-GCM
+  (`supabase/functions/_shared/crypto.ts`, Web Crypto nativo de Deno, sin
+  dependencias) con la clave de cifrado como secret de Supabase
+  (`SETTINGS_ENCRYPTION_KEY`, 256 bits aleatorios, nunca en el repo). Nueva
+  Edge Function `save-api-key` que cifra antes de guardar — el frontend
+  nunca escribe la key en texto plano en la base de datos. El disclaimer del
+  modal ("🔒 se cifra con AES-256...") se escribió después de tenerlo
+  funcionando, no antes.
+- **Prompt caching** en `_shared/anthropic.ts` (`cache_control: ephemeral`
+  en el system prompt y el esquema de la herramienta): ambos apenas cambian
+  entre llamadas, así que Anthropic no los reprocesa como tokens nuevos en
+  cada registro — ahorro real de coste/latencia, no cosmético.
+
+### Login con Google
+
+Motivo: vas a compartir la app con varias personas y el magic link por
+email era un incordio incluso con SMTP propio. Implementado
+`signInWithOAuth({ provider: 'google' })` en `useAuth.tsx` + botón en
+`Login.tsx`. Tú creaste las credenciales OAuth en Google Cloud Console
+(gratis, sin necesidad de verificación de Google al usar solo scopes
+básicos — publicado en modo Producción, no "Testing", para que cualquiera
+pueda entrar sin límite de 100 usuarios de prueba ni caducidad de 7 días).
+Configuré el provider en Supabase con el Client ID/Secret que me pasaste
+(vía un fichero temporal, nunca en texto plano en un comando o commit) y
+verifiqué que `/auth/v1/authorize?provider=google` redirige correctamente a
+Google con los parámetros esperados.
+
+### Decisiones y por qué
+
+- **BYOK en vez de desactivar el registro público**: al principio propuse
+  simplemente cerrar el signup (`disable_signup`) para el caso de un solo
+  usuario. Cuando dijiste que ibas a compartir la app con más gente, BYOK
+  resultó ser la solución correcta para ambos problemas a la vez (coste
+  compartido Y multi-usuario), así que no hizo falta cerrar el registro.
+- **Meta de calorías fija (2000 kcal) en `CalorieRing`**: el brief no pide
+  un sistema de objetivos personalizables; añadir una pantalla de ajustes
+  para eso habría sido alcance no pedido. Si en algún momento se quiere
+  personalizar, es un cambio pequeño y localizado.
+- **Verificación**: cada pieza de esta tanda se probó con datos reales o con
+  llamadas directas a las APIs (no solo build/lint) — el bundle publicado
+  para los secrets, el endpoint de `/authorize` para Google, `curl` directo
+  a Anthropic para diagnosticar el crédito agotado, etc. Se documenta cada
+  vez porque son los pasos que permitirían a otra sesión reproducir el
+  diagnóstico sin adivinar.
+
+### Pendiente
+
+- Nada bloqueante. Sprint 6 (PWA) está implementado pero pendiente de una
+  prueba formal de instalación en un iPhone real contra la URL de
+  producción (ver nota del Sprint 8 arriba).
+- Si en el futuro se comparte con mucha más gente, revisar si el modo
+  "Producción" de Google sigue sin pedir verificación (cambia si se piden
+  scopes sensibles o un volumen muy alto de usuarios).
