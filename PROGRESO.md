@@ -768,3 +768,82 @@ Google con los parámetros esperados.
 - Si en el futuro se comparte con mucha más gente, revisar si el modo
   "Producción" de Google sigue sin pedir verificación (cambia si se piden
   scopes sensibles o un volumen muy alto de usuarios).
+
+---
+
+## Post-lanzamiento (2) — bugs reales tras varias horas de uso con usuarios ✅
+
+Reportados tras compartir la app con varias personas durante un par de
+horas. Los dos eran reales, no percepción — verificados y arreglados con
+evidencia, no solo "debería estar arreglado".
+
+### Bug 1: la cámara no se abría en móvil (se quedaba en "Abriendo cámara…")
+
+Causa: en `EntryModal.tsx`, el `<input type="file">` solo se montaba dentro
+del paso `'photo'`, pero `handlePhotoButtonClick` llamaba a
+`fileInputRef.current.click()` en la misma función que cambia `step` a
+`'photo'` — antes de que React re-renderizara con el input ya montado, así
+que el ref seguía siendo `null` y el `.click()` no hacía nada. Se quedaba
+colgado para siempre en el mensaje de "Abriendo cámara…".
+
+**Fix**: el `<input>` ahora se monta siempre (oculto), fuera del
+condicional del paso — el ref existe desde el principio.
+
+### Bug 2: estimaciones de texto poco fiables (evidencia: filas reales de `food_entries`)
+
+Dos problemas distintos en la misma tabla de ejemplo que mandaste:
+
+1. **Inconsistencia con platos compuestos**: "una tortilla de dos huevos y
+   una yema" se guardó una vez como un solo plato y otra vez partido en dos
+   filas ("tortilla de dos huevos" + "yema de huevo"), con el mismo texto de
+   entrada. El prompt solo daba un ejemplo de plato compuesto con "con"
+   ("tostada con aguacate"), no cubría el patrón "de ... y" para ingredientes
+   dentro de una misma descripción. Reescribí la regla 1 del prompt con más
+   ejemplos y un criterio más explícito. **Verificado** repitiendo la llamada
+   real a Claude con el texto exacto reportado: ahora sale siempre como un
+   único item.
+2. **Productos envasados de marca, muy inexactos**: "Monster ENERGY Ultra
+   500 ml blanco" se estimó en 105 kcal / 4g carbohidratos; el dato real de
+   Open Food Facts es ~10 kcal / 4.5g carbos para todo el bote — un ~90% de
+   error. Claude no puede "saber" la composición exacta de un producto de
+   marca concreto, solo adivinar a partir de productos similares que conoce.
+   **Implementado el cruce con Open Food Facts** que el brief preveía desde
+   el principio (punto 2 del documento original) y que habíamos dejado
+   pendiente en los Sprints 2/3 documentado como simplificación temporal:
+   - Nuevos campos en `FOOD_ITEMS_TOOL`: `is_packaged_product` (boolean),
+     `product_search_name` (nombre de búsqueda limpio, ej. "Monster Energy
+     Ultra").
+   - Nuevo `supabase/functions/_shared/open-food-facts.ts`: busca el
+     producto real en Open Food Facts y, si lo encuentra, sustituye la
+     estimación de Claude por los nutrientes reales (escalados a los gramos
+     estimados), marcando `nutrition_source='open_food_facts'`. Si no lo
+     encuentra, se queda con la estimación de Claude como respaldo
+     (`ai_estimate`) — nunca rompe el registro por esto.
+   - **Verificado con la API real** de Open Food Facts (`curl` directo:
+     confirmé que "Monster Energy Ultra" devuelve 2 kcal/100g, coincide con
+     el problema reportado) y repitiendo la llamada a Claude con el prompt
+     nuevo para confirmar que marca `is_packaged_product=true` con el nombre
+     de búsqueda correcto.
+
+### Decisiones y por qué
+
+- **No creé una tabla ni caché para resultados de Open Food Facts**: su API
+  es gratuita y sin límite de uso razonable (ya documentado desde el
+  principio del proyecto); cachear habría sido optimización prematura sin
+  evidencia de que haga falta.
+- **Rango de calorías más ajustado para productos de Open Food Facts
+  (±10%)** que para estimación pura de IA (±15-30% según texto/foto): al
+  ser un dato real de producto, la incertidumbre que queda es solo sobre los
+  gramos exactos consumidos, no sobre la composición nutricional.
+- **Verificación real en ambos bugs**, no solo build/lint: reproduje la
+  llamada exacta a Claude con el prompt nuevo (mismo texto que reportaste) y
+  golpeé la API de Open Food Facts directamente antes de dar el fix por
+  bueno — así se confirma con evidencia, no solo "el código parece
+  correcto".
+
+### Pendiente
+
+- Nada bloqueante. Si en el futuro se ven más inexactitudes con productos
+  envasados, revisar si `product_search_name` necesita instrucciones más
+  específicas (ej. incluir el tamaño del envase cuando afecte al resultado
+  de búsqueda).
