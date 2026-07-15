@@ -5,6 +5,7 @@
 // cambia el contenido enviado a Claude y el prompt de sistema.
 import { corsHeaders } from '../_shared/cors.ts'
 import { callClaudeTool } from '../_shared/anthropic.ts'
+import { fetchUserAnthropicKey } from '../_shared/user-settings.ts'
 import {
   createUserClient,
   getAuthenticatedUser,
@@ -38,10 +39,23 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const apiKey = await fetchUserAnthropicKey(supabase, user.id)
+    if (!apiKey) {
+      return jsonResponse(
+        corsHeaders,
+        {
+          error:
+            'Configura tu API key de Anthropic en Ajustes antes de registrar comida.',
+        },
+        400
+      )
+    }
+
     const categories = await fetchCategories(supabase)
     const categoryNames = categories.map((c) => c.name)
 
     const { items } = await callClaudeTool<{ items: ParsedFoodItem[] }>({
+      apiKey,
       system: buildSystemPrompt(categoryNames),
       content: [
         {

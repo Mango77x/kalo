@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../hooks/useAuth'
 import TabBar from './TabBar'
+import SettingsModal from './SettingsModal'
 
 export default function Layout() {
   const { session, signOut } = useAuth()
   const location = useLocation()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div className="flex min-h-full flex-col">
@@ -17,6 +20,14 @@ export default function Layout() {
           </span>
           <button
             type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Ajustes"
+            className="text-sm hover:opacity-70"
+          >
+            ⚙️
+          </button>
+          <button
+            type="button"
             onClick={() => signOut()}
             className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
           >
@@ -24,6 +35,8 @@ export default function Layout() {
           </button>
         </div>
       </header>
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       <div className="flex-1 overflow-y-auto">
         <AnimatePresence mode="wait" initial={false}>

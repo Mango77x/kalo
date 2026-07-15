@@ -6,6 +6,10 @@
 // Modelo: Sonnet, no Haiku — la diferencia de precio es de céntimos al mes
 // pero la precisión (sobre todo en estimación visual de porciones) es
 // sustancialmente mejor con Sonnet.
+//
+// La API key es siempre la del propio usuario (BYOK, ver _shared/user-settings.ts):
+// nunca hay una key compartida del proyecto, así que un registro público no
+// puede consumir la cuota de nadie más que la suya.
 const MODEL = 'claude-sonnet-5'
 const ANTHROPIC_VERSION = '2023-06-01'
 
@@ -26,28 +30,34 @@ export interface ClaudeToolDefinition {
 }
 
 export async function callClaudeTool<T>(params: {
+  apiKey: string
   system: string
   content: string | ClaudeContentBlock[]
   tool: ClaudeToolDefinition
 }): Promise<T> {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-  if (!apiKey) {
-    throw new Error('Falta el secret ANTHROPIC_API_KEY en la Edge Function')
-  }
-
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': apiKey,
+      'x-api-key': params.apiKey,
       'anthropic-version': ANTHROPIC_VERSION,
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 2048,
-      system: params.system,
+      // El system prompt y el esquema de la herramienta apenas cambian entre
+      // llamadas (solo varía la lista de categorías, casi siempre la misma
+      // taxonomía fija) — cachearlos con prompt caching de Anthropic evita
+      // reprocesarlos como tokens nuevos en cada registro.
+      system: [
+        {
+          type: 'text',
+          text: params.system,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: params.content }],
-      tools: [params.tool],
+      tools: [{ ...params.tool, cache_control: { type: 'ephemeral' } }],
       tool_choice: { type: 'tool', name: params.tool.name },
     }),
   })
