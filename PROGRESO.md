@@ -847,3 +847,87 @@ Dos problemas distintos en la misma tabla de ejemplo que mandaste:
   envasados, revisar si `product_search_name` necesita instrucciones más
   específicas (ej. incluir el tamaño del envase cuando afecte al resultado
   de búsqueda).
+
+---
+
+## Post-lanzamiento (3) — investigación de Fitia: USDA + formato de lista ✅
+
+El usuario pidió investigar cómo Fitia (otra app de nutrición) logra
+estimaciones más precisas mediante un formato de "lista de la compra" para
+el registro por texto, y proponer cómo aplicarlo a Kalo. Se hizo la
+investigación primero (con fuentes), se presentó un análisis, y tras la
+confirmación del usuario se implementaron las dos piezas identificadas, en
+commits separados como pidió.
+
+### Investigación (resumen; ver la conversación para el detalle con fuentes)
+
+Fitia tiene un "Registro Inteligente": el usuario escribe una lista (un
+alimento por línea) en vez de una frase. Su propia documentación afirma que
+esto mejora la precisión, pero el hallazgo importante fue otro: **el
+formato de lista no es la razón principal** — Fitia combina la IA con una
+**base de datos de alimentos verificada profesionalmente** (revisada por
+nutricionistas, cruzada con USDA), así que el número final no sale de que
+el modelo "calcule mejor", sino de que cada alimento parseado se busca en
+datos reales en vez de estimarse de memoria. El formato de lista ayuda,
+pero es secundario a tener una base de datos real detrás.
+
+### Qué se implementó
+
+**Pieza 1 — USDA FoodData Central** (`6fef591`): para alimentos
+frescos/genéricos sin marca (pollo, arroz, huevo, fruta...), antes de
+aceptar la estimación de Claude se intenta buscar el valor real en USDA.
+Es la pieza del brief original que quedaba pendiente desde el Sprint 2
+(Open Food Facts ya cubría productos envasados; USDA cubre el resto).
+- `_shared/usda.ts` + `_shared/nutrition-resolution.ts` unifican Open Food
+  Facts y USDA en una sola estrategia de 3 niveles (envasado→OFF,
+  genérico→USDA, fallback→estimación IA).
+- Nota técnica real encontrada al implementar: el nombre del nutriente de
+  energía en USDA cambia según el dataset (`Energy` en SR Legacy vs.
+  `Energy (Atwater ... Factors)` en Foundation), y algunos resultados
+  (productos procesados) vienen con el panel de macros incompleto — hay que
+  aceptar varios nombres y recorrer los primeros resultados hasta encontrar
+  uno completo.
+- **Usa la `DEMO_KEY` pública de USDA por ahora** (límite bajo, 30
+  peticiones/hora, compartido globalmente entre todo el mundo que use esa
+  key — se agotó solo con las pruebas de verificación). El código ya lee
+  un secret `USDA_API_KEY` si existe, así que subir a una key propia
+  (gratis e instantánea en fdc.nal.usda.gov/api-key-signup.html) es solo
+  configurar el secret, sin tocar código.
+
+**Pieza 2 — formato de lista en la UI** (`f206ac8`): el textarea de texto
+libre ahora sugiere (placeholder + nota corta) escribir un alimento por
+línea, y el prompt trata cada línea no vacía como un alimento distinto por
+defecto. Esto elimina de raíz la ambigüedad que causó el bug de la tortilla
+(Post-lanzamiento 2): si el usuario ya separa por líneas, no hay nada que
+el modelo tenga que inferir sobre dónde empieza y acaba cada alimento.
+Sigue aceptando una frase en una sola línea para quien lo prefiera.
+
+### Decisiones y por qué
+
+- **No se obligó el formato de lista** (no se eliminó la opción de frase
+  libre): es una sugerencia con placeholder, no una validación estricta —
+  menos fricción para quien prefiera escribir de forma conversacional,
+  coherente con "no añadir restricciones no pedidas".
+- **`usda_search_term_en` en inglés, no en español**: USDA FoodData Central
+  no tiene datos en español; pedirle a Claude que traduzca el término de
+  búsqueda es más fiable que intentar buscar directamente en español.
+- **No se sustituye `food_name` por la descripción de USDA** (a diferencia
+  de Open Food Facts, donde sí se sustituye por el nombre oficial del
+  producto): la descripción de USDA está en inglés y es más técnica (ej.
+  "Chicken, breast, boneless, skinless, raw"); el usuario prefiere ver el
+  nombre en español que él mismo escribió. Solo se toman los números.
+- **Verificación real en ambas piezas**: llamadas directas a la API de
+  Claude con el prompt nuevo (confirmando `is_generic_food`/
+  `usda_search_term_en` correctos, y que el formato de lista produce
+  exactamente un item por línea) y a la API real de USDA (confirmando
+  valores correctos para pollo a la plancha, y descubriendo el límite de
+  `DEMO_KEY` de primera mano).
+
+### Pendiente
+
+- **Recomendado pero no bloqueante**: pedir una API key propia de USDA
+  (gratis, instantánea, https://fdc.nal.usda.gov/api-key-signup.html) para
+  no depender de la `DEMO_KEY` compartida, que se agota fácilmente con
+  varios usuarios. Sin ella, USDA simplemente fallará más a menudo y caerá
+  con gracia al respaldo de estimación de Claude — no rompe nada, solo
+  reduce cuántas veces se usa el dato real en vez de la estimación.
