@@ -17,5 +17,14 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // PKCE (el flow por defecto de supabase-js) exige que el enlace mágico se
+    // abra en el MISMO navegador que lo pidió, porque guarda el
+    // code_verifier en localStorage de esa pestaña. En móvil, el enlace del
+    // email casi siempre se abre desde la app de Mail (un contexto de
+    // navegador distinto, sin acceso a ese localStorage), y el intercambio
+    // de sesión falla mostrando el JSON crudo del endpoint de verify ("{}").
+    // El flow implícito mete los tokens directamente en el hash de la URL de
+    // redirección, así que funciona sin importar dónde se abra el enlace.
+    flowType: 'implicit',
   },
 })
