@@ -12,6 +12,7 @@ interface AuthContextValue {
   session: Session | null
   loading: boolean
   signInWithEmail: (email: string) => Promise<{ error: string | null }>
+  signInWithGoogle: () => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -51,13 +52,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null }
   }
 
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + import.meta.env.BASE_URL,
+      },
+    })
+    return { error: error?.message ?? null }
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
   }
 
   return (
     <AuthContext.Provider
-      value={{ session, loading, signInWithEmail, signOut }}
+      value={{ session, loading, signInWithEmail, signInWithGoogle, signOut }}
     >
       {children}
     </AuthContext.Provider>
