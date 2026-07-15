@@ -58,6 +58,10 @@ Deno.serve(async (req: Request) => {
 
     const { items } = await callClaudeTool<{ items: ParsedFoodItem[] }>({
       apiKey,
+      // Haiku, no Sonnet: parsear texto es extracción/clasificación, no
+      // estimación visual — Haiku da resultados equivalentes a una
+      // fracción del coste (verificado con los mismos casos de prueba).
+      model: 'claude-haiku-4-5-20251001',
       system: buildSystemPrompt(categoryNames),
       content: rawInput,
       tool: FOOD_ITEMS_TOOL,
