@@ -15,6 +15,12 @@ públicas y guarda el registro. Instalable como **PWA** en el móvil.
 
 **Demo en producción:** [mango77x.github.io/kalo](https://mango77x.github.io/kalo/)
 
+## Capturas
+
+| Hoy | Registrar comida | Lista de la compra |
+| --- | --- | --- |
+| ![Vista Hoy con registros del día](./docs/screenshots/today.jpg) | ![Modal para elegir texto o foto](./docs/screenshots/register-modal.jpg) | ![Registro por texto en formato lista](./docs/screenshots/register-text.jpg) |
+
 ## Funcionalidades
 
 - **Registro por texto**: escribe lo que has comido como una lista de la
